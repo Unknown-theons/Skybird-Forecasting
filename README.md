@@ -1,4 +1,4 @@
-# Skybird-Forecasting
+# Skybird-Forecasting 🌦️📅
 Skybird Forecasting transforms decades of NASA Earth observation data into an interactive tool that provides long-range weather risk probabilities for any location on Earth. It's not another weather forecast app; it's a strategic planning tool designed to help you make confident, science-backed decisions months in advance.
 
 ## The Problem
