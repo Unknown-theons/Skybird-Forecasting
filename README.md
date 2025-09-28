@@ -1,6 +1,5 @@
 # Skybird-Forecasting
-Skybird Forecasting 🌦️📅
-Skybird Forecasting is a data-driven web application that provides long-range weather risk probabilities for any location and date, powered by decades of NASA Earth observation data. It's not another weather forecast app; it's a strategic planning tool designed to help you make confident, science-backed decisions months in advance.
+Skybird Forecasting transforms decades of NASA Earth observation data into an interactive tool that provides long-range weather risk probabilities for any location on Earth. It's not another weather forecast app; it's a strategic planning tool designed to help you make confident, science-backed decisions months in advance.
 
 ## The Problem
 Event planners, outdoor organizers, and individuals scheduling activities months ahead lack actionable, data-driven estimates of weather risk. Operational weather forecasts are reliable only about 7-10 days out, and generic 'normals' report coarse averages that obscure seasonal extremes and evolving climate trends.
