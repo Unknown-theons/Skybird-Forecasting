@@ -2,12 +2,12 @@
 Skybird Forecasting 🌦️📅
 Skybird Forecasting is a data-driven web application that provides long-range weather risk probabilities for any location and date, powered by decades of NASA Earth observation data. It's not another weather forecast app; it's a strategic planning tool designed to help you make confident, science-backed decisions months in advance.
 
-## 🎯 The Problem
+## The Problem
 Event planners, outdoor organizers, and individuals scheduling activities months ahead lack actionable, data-driven estimates of weather risk. Operational weather forecasts are reliable only about 7-10 days out, and generic 'normals' report coarse averages that obscure seasonal extremes and evolving climate trends.
 
 This planning gap forces stakeholders to make contingency decisions without quantified probabilities, raising logistical costs and safety exposure. The stakes are significant: in 2024, extreme weather events caused at least 11,500 deaths globally. Skybird Forecasting was built to bridge this gap by enabling evidence-based decisions that reduce disruption and protect public safety.
 
-✨ Key Features
+## Key Features
 Our solution transforms complex climate datasets into simple, actionable insights through an intuitive, planner-centric dashboard.
 
 📍 Location & Date Specific Analysis: Enter any address, coordinates, or drop a pin on the map for a specific future date.
@@ -22,16 +22,7 @@ Our solution transforms complex climate datasets into simple, actionable insight
 
 📊 Rich Visuals & Data Export: An interactive dashboard brings the data to life with charts and graphs. All results are downloadable as CSV/JSON with full metadata for transparency and use in external workflows.
 
-🛠️ Tech Stack
-The application is built with a modern, scalable architecture designed for rapid development and robust performance.
-
-Frontend: React.js, HTML/CSS
-
-Backend: Flask API
-
-Data Science & ML: We use a custom Probabilistic Machine Learning Model that applies Bayesian smoothing and circular kernel smoothing to historical NASA data to generate robust probability distributions.
-
-🧑‍💻 The Team
+# The Team
 Our team combines expertise in AI/ML, climate data analysis, and full-stack web development to bring this project to life.
 
 Mohannad Zahra: Data Scientist
