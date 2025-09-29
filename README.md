@@ -28,7 +28,7 @@ Mohannad Zahra: Data Scientist
 
 Mohamed Hussien: AI Engineer
 
-Omar Alaa: Backend Developer & Pen Tester
+Omar Alaa: Backend Developer & PenTester
 
 Abdelrhman Wael: Full Stack Developer
 
