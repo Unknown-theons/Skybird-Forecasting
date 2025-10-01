@@ -20,13 +20,22 @@ export default function Login() {
 
   // Password strength calculation
   const getPasswordStrength = (password: string) => {
-    if (password.length === 0) return { strength: 0, label: '', color: '' };
-    if (password.length < 6) return { strength: 1, label: 'Weak', color: 'text-red-500' };
-    if (password.length < 8) return { strength: 2, label: 'Fair', color: 'text-yellow-500' };
-    if (password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password)) {
-      return { strength: 4, label: 'Strong', color: 'text-green-500' };
-    }
-    return { strength: 3, label: 'Good', color: 'text-blue-500' };
+    if (password.length === 0) return { strength: 0, label: '', color: '', requirements: [] };
+    
+    const requirements = [
+      { text: 'At least 8 characters', met: password.length >= 8 },
+      { text: 'One uppercase letter', met: /[A-Z]/.test(password) },
+      { text: 'One lowercase letter', met: /[a-z]/.test(password) },
+      { text: 'One number', met: /\d/.test(password) }
+    ];
+    
+    const metCount = requirements.filter(r => r.met).length;
+    
+    if (metCount === 0) return { strength: 1, label: 'Very Weak', color: 'text-red-500', requirements };
+    if (metCount === 1) return { strength: 2, label: 'Weak', color: 'text-red-500', requirements };
+    if (metCount === 2) return { strength: 3, label: 'Fair', color: 'text-yellow-500', requirements };
+    if (metCount === 3) return { strength: 4, label: 'Good', color: 'text-blue-500', requirements };
+    return { strength: 5, label: 'Strong', color: 'text-green-500', requirements };
   };
 
   const passwordStrength = getPasswordStrength(password);
@@ -46,7 +55,7 @@ export default function Login() {
 
     try {
       const response = await login({ email, password });
-      setToken(response.accessToken);
+      setToken(response.access_token);
       const userData = await getCurrentUser();
       loginUser(userData);
       setEmail('');
@@ -74,9 +83,30 @@ export default function Login() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      toast.error('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      toast.error('Password must be at least 8 characters');
+      setLoading(false);
+      return;
+    }
+    
+    if (!/[A-Z]/.test(password)) {
+      setError('Password must contain at least one uppercase letter');
+      toast.error('Password must contain at least one uppercase letter');
+      setLoading(false);
+      return;
+    }
+    
+    if (!/[a-z]/.test(password)) {
+      setError('Password must contain at least one lowercase letter');
+      toast.error('Password must contain at least one lowercase letter');
+      setLoading(false);
+      return;
+    }
+    
+    if (!/\d/.test(password)) {
+      setError('Password must contain at least one number');
+      toast.error('Password must contain at least one number');
       setLoading(false);
       return;
     }
@@ -210,21 +240,34 @@ export default function Login() {
                     <p className="text-xs text-muted-foreground">Use 8+ characters with a mix of letters and numbers.</p>
                     {password && (
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full transition-all duration-300 ${
-                                passwordStrength.strength === 1 ? 'bg-red-500 w-1/4' :
-                                passwordStrength.strength === 2 ? 'bg-yellow-500 w-1/2' :
-                                passwordStrength.strength === 3 ? 'bg-blue-500 w-3/4' :
-                                passwordStrength.strength === 4 ? 'bg-green-500 w-full' :
-                                'w-0'
-                              }`}
-                            />
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div 
+                                className={`h-2 rounded-full transition-all duration-300 ${
+                                  passwordStrength.strength === 1 ? 'bg-red-500 w-1/5' :
+                                  passwordStrength.strength === 2 ? 'bg-red-500 w-2/5' :
+                                  passwordStrength.strength === 3 ? 'bg-yellow-500 w-3/5' :
+                                  passwordStrength.strength === 4 ? 'bg-blue-500 w-4/5' :
+                                  passwordStrength.strength === 5 ? 'bg-green-500 w-full' :
+                                  'w-0'
+                                }`}
+                              />
+                            </div>
+                            <span className={`text-xs font-medium ${passwordStrength.color}`}>
+                              {passwordStrength.label}
+                            </span>
                           </div>
-                          <span className={`text-xs font-medium ${passwordStrength.color}`}>
-                            {passwordStrength.label}
-                          </span>
+                          <div className="text-xs text-gray-600 space-y-1">
+                            {passwordStrength.requirements.map((req, index) => (
+                              <div key={index} className={`flex items-center space-x-1 ${
+                                req.met ? 'text-green-600' : 'text-gray-500'
+                              }`}>
+                                <span>{req.met ? '✓' : '○'}</span>
+                                <span>{req.text}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     )}

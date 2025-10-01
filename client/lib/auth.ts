@@ -11,10 +11,12 @@ export interface RegisterRequest {
 }
 
 export interface AuthResponse {
-  accessToken: string;
+  access_token: string;
+  token_type: string;
 }
 
 export interface User {
+  id: number;
   email: string;
 }
 
@@ -43,13 +45,17 @@ export const login = async (data: LoginRequest): Promise<AuthResponse> => {
 
   if (!response.ok) {
     const error = await response.json();
+    if (error.detail) {
+      // Handle Pydantic validation errors
+      throw new Error(error.detail);
+    }
     throw new Error(error.error || 'Login failed');
   }
 
   return response.json();
 };
 
-export const register = async (data: RegisterRequest): Promise<{ ok: boolean }> => {
+export const register = async (data: RegisterRequest): Promise<{ message: string }> => {
   const response = await fetch('/api/auth/register', {
     method: 'POST',
     headers: {
@@ -60,6 +66,10 @@ export const register = async (data: RegisterRequest): Promise<{ ok: boolean }> 
 
   if (!response.ok) {
     const error = await response.json();
+    if (error.detail) {
+      // Handle Pydantic validation errors
+      throw new Error(error.detail);
+    }
     throw new Error(error.error || 'Registration failed');
   }
 
