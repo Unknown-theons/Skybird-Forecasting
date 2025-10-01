@@ -5,4 +5,7 @@ flask-jwt-extended==4.6.0
 python-dotenv==1.0.1
 SQLAlchemy==2.0.36
 alembic==1.13.2
+pydantic==2.9.2
+pydantic-settings==2.4.0
+email-validator==2.2.0
 
