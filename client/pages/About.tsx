@@ -7,7 +7,7 @@ const team = [
   { name: "Mohamed Hussien", role: "Machine Learning Engineer", img: "https://randomuser.me/api/portraits/men/11.jpg", initials: "MH" },
   { name: "Yousef Tarek", role: "Full Stack Engineer", img: "https://randomuser.me/api/portraits/men/22.jpg", initials: "YT" },
   { name: "Mohannad Ezz", role: "Data Scientist", img: "https://randomuser.me/api/portraits/men/33.jpg", initials: "ME" },
-  { name: "Omar Wael", role: "Back End Engineer", img: "https://randomuser.me/api/portraits/men/44.jpg", initials: "OW" },
+  { name: "Omar Alaa", role: "BackEnd Engineer", img: "https://randomuser.me/api/portraits/men/44.jpg", initials: "OA" },
   { name: "Abdelrahman Wael", role: "Full Stack Engineer", img: "https://randomuser.me/api/portraits/men/55.jpg", initials: "AW" },
 ];
 
