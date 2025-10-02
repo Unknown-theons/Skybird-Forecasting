@@ -1,14 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { generateWeatherData, getWeatherDescription, getWeatherTips } from "@/lib/weather-data";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import {
   AreaChart,
   Area,
-  LineChart,
-  Line,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -65,11 +66,68 @@ export default function Results() {
 
   const query = useQuery();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const location = query.get("location") || "Unknown";
   const datetime = formatDateTime(query.get("datetime"));
   const concerns = (query.get("concerns") || "").split(",").filter(Boolean);
+  
+  // Debug logging
+  console.log('=== RESULTS PAGE DEBUG ===');
+  console.log('Current URL:', window.location.href);
+  console.log('URL search params:', window.location.search);
+  console.log('Query object entries:', Object.fromEntries(query.entries()));
+  console.log('Location param:', query.get("location"));
+  console.log('Concerns param:', query.get("concerns"));
+  console.log('Final location value:', location);
+  console.log('=== END RESULTS PAGE DEBUG ===');
+  
+  const [weatherData, setWeatherData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasGeneratedData, setHasGeneratedData] = useState(false);
+
+  // Generate weather data for the location
+  useEffect(() => {
+    if (location && location !== "Unknown" && !hasGeneratedData) {
+      setIsLoading(true);
+      setHasGeneratedData(true);
+      console.log('Generating weather data for location:', location);
+      // Simulate API call delay
+      setTimeout(() => {
+        const data = generateWeatherData(location);
+        setWeatherData(data);
+        setIsLoading(false);
+      }, 500);
+    } else if (location === "Unknown" && !hasGeneratedData) {
+      // If no location is provided, try to use user's preferred city
+      if (user?.preferences?.preferred_city) {
+        console.log('No location in URL, using user preferred city:', user.preferences.preferred_city);
+        const params = new URLSearchParams();
+        params.set("location", user.preferences.preferred_city);
+        params.set("concerns", "rain,humidity");
+        const url = `/results?${params.toString()}`;
+        console.log('Redirecting to:', url);
+        navigate(url);
+      } else {
+        console.log('No location provided and no preferred city, redirecting to home page');
+        navigate('/?new=true');
+      }
+    }
+  }, [location, hasGeneratedData, navigate, user]);
 
   const data = useMemo(() => {
+    if (weatherData) {
+      // Use generated weather data
+      return weatherData.forecast.map((item: any) => ({
+        hour: item.hour,
+        temp: item.temp,
+        humidity: item.humidity,
+        wind: item.wind,
+        rain: item.rain,
+        comfort: item.comfort,
+      })) as DataPoint[];
+    }
+    
+    // Fallback to original seeded random data
     const seed = Array.from(location).reduce((a, c) => a + c.charCodeAt(0), 0) + concerns.length * 13;
     const rand = seededRandom(seed);
     const hours = Array.from({ length: 12 }, (_, i) => i * 2);
@@ -99,7 +157,7 @@ export default function Results() {
         comfort: Math.round(comfort),
       } as DataPoint;
     });
-  }, [location, concerns]);
+  }, [location, concerns, weatherData]);
 
   const latest = data[Math.min(data.length - 1, 6)];
 
@@ -129,13 +187,46 @@ export default function Results() {
     rain: Math.round(((latest.rain - prev.rain) / Math.max(1, Math.abs(prev.rain))) * 100),
   };
 
-  const recommendation = latest.comfort >= 65
-    ? { tone: "good" as const, icon: CheckCircle2, text: "Excellent conditions for outdoor plans.", sub: "Low risk of disruptive weather." }
-    : { tone: "caution" as const, icon: AlertTriangle, text: "Conditions may be limiting.", sub: "Plan flexible or indoor options." };
+  const recommendation = useMemo(() => {
+    if (weatherData) {
+      const description = getWeatherDescription(weatherData.comfort, weatherData.conditions);
+      return weatherData.comfort >= 65
+        ? { tone: "good" as const, icon: CheckCircle2, text: description, sub: "Low risk of disruptive weather." }
+        : { tone: "caution" as const, icon: AlertTriangle, text: description, sub: "Plan flexible or indoor options." };
+    }
+    
+    return latest.comfort >= 65
+      ? { tone: "good" as const, icon: CheckCircle2, text: "Excellent conditions for outdoor plans.", sub: "Low risk of disruptive weather." }
+      : { tone: "caution" as const, icon: AlertTriangle, text: "Conditions may be limiting.", sub: "Plan flexible or indoor options." };
+  }, [latest.comfort, weatherData]);
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto max-w-5xl px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading weather data for {location}...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-2 text-2xl font-semibold tracking-tight">Will It Rain On My Parade?</h1>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Will It Rain On My Parade?</h1>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => navigate("/?new=true")}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Search New Location
+        </Button>
+      </div>
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
         <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {location}</span>
         {datetime && <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {datetime}</span>}
@@ -194,7 +285,7 @@ export default function Results() {
             <p className="text-muted-foreground">Want to check another location or event?</p>
             <button
               className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/?new=true")}
             >
               <RefreshCw className="h-4 w-4" /> New Forecast
             </button>
@@ -202,15 +293,27 @@ export default function Results() {
         </Card>
       </div>
 
-      {/* One concise tip */}
+      {/* Weather tips */}
       <div className="mt-8 rounded-xl border bg-card p-4 shadow-soft">
         <div className="text-sm">
-          <span className="font-medium">Top tip: </span>
-          {top.full === "Very Wet" && "Carry an umbrella and waterproof layers."}
-          {top.full === "Very Windy" && "Secure loose items and consider windproof clothing."}
-          {top.full === "Very Hot" && "Avoid peak sun hours and stay hydrated."}
-          {top.full === "Very Cold" && "Layer up; consider gloves and a hat."}
-          {top.full === "Very Uncomfortable" && "Plan flexible indoor options as backup."}
+          <span className="font-medium">Weather tips: </span>
+          {weatherData ? (
+            <div className="mt-2">
+              {getWeatherTips(weatherData.conditions, weatherData.temperature, weatherData.humidity, weatherData.windSpeed).map((tip, index) => (
+                <div key={index} className="mb-1">
+                  {tip}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>
+              {top.full === "Very Wet" && "Carry an umbrella and waterproof layers."}
+              {top.full === "Very Windy" && "Secure loose items and consider windproof clothing."}
+              {top.full === "Very Hot" && "Avoid peak sun hours and stay hydrated."}
+              {top.full === "Very Cold" && "Layer up; consider gloves and a hat."}
+              {top.full === "Very Uncomfortable" && "Plan flexible indoor options as backup."}
+            </div>
+          )}
         </div>
       </div>
 

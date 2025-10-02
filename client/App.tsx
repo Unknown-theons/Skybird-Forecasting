@@ -13,6 +13,7 @@ import Contribute from "./pages/Contribute";
 import Model from "./pages/Model";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 import About from "./pages/About";
 import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
@@ -40,6 +41,11 @@ const App = () => (
                 <Route path="/profile" element={
                   <ProtectedRoute>
                     <Profile />
+                  </ProtectedRoute>
+                } />
+                <Route path="/settings" element={
+                  <ProtectedRoute>
+                    <Settings />
                   </ProtectedRoute>
                 } />
                 <Route path="/about" element={<About />} />
