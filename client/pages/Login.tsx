@@ -14,6 +14,7 @@ export default function Login() {
   const [signupShowPwd, setSignupShowPwd] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { user, login: loginUser } = useAuth();
@@ -112,11 +113,12 @@ export default function Login() {
     }
 
     try {
-      await register({ email, password });
+      await register({ email, password, full_name: fullName || undefined });
       setError('');
       toast.success('Registration successful! Please login.');
       setEmail('');
       setPassword('');
+      setFullName('');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Registration failed';
       setError(errorMessage);
@@ -211,6 +213,16 @@ export default function Login() {
 
             <TabsContent value="signup">
               <form className="grid gap-3" onSubmit={handleRegister}>
+                <div className="grid gap-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input 
+                    id="fullName" 
+                    type="text" 
+                    placeholder="John Doe" 
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                  />
+                </div>
                 <div className="grid gap-2">
                   <Label htmlFor="signupEmail">Email</Label>
                   <Input 
