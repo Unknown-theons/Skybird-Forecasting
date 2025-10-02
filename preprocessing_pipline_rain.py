@@ -1,6 +1,6 @@
 import xarray as xr
 import glob
-import os # Good practice to use os.path.join
+import os
 
 # --- Configuration ---
 
@@ -16,54 +16,86 @@ features_to_keep = [
 # --- Data Loading and Cleaning ---
 
 def data_ingestion(file_pattern, features_to_keep):
-    """Loads files and immediately selects a subset of variables."""
+    """
+    Loads files, selects variables, and applies Dask chunking for
+    efficient, parallel processing.
+    """
     print(f"Loading files from: {file_pattern}")
     file_paths = sorted(glob.glob(file_pattern))
     if not file_paths:
         raise ValueError(f"No files found matching the pattern: {file_pattern}")
     
-    # Using a context manager for opening datasets is good practice
-    with xr.open_mfdataset(file_paths, combine='by_coords') as ds:
-        # Select only the necessary variables to save memory
-        ds_selected = ds[features_to_keep]
-        print("Data ingestion and feature selection complete.")
-        # Load into memory before closing the files
-        return ds_selected.load()
+    # 💡 OPTIMIZATION 1: Specify chunks to control Dask parallelism.
+    # Chunking by 'time' (e.g., 30 steps) is generally efficient.
+    # We remove the context manager (with xr.open_mfdataset) and the ds_selected.load()
+    # to ensure the data remains lazy until the final .to_netcdf call.
+    chunks = {'time': 30, 'lat': 'auto', 'lon': 'auto'}
+    
+    ds = xr.open_mfdataset(
+        file_paths, 
+        combine='by_coords',
+        chunks=chunks # Apply chunking
+    )
+    
+    # Select only the necessary variables to save memory
+    ds_selected = ds[features_to_keep]
+    print("Data ingestion, chunking, and feature selection complete.")
+    return ds_selected
 
 def clean_data(ds, vars_to_check):
-
+    """Checks for and fills missing values in the specified variables."""
     print("Starting data cleaning...")
     for var in vars_to_check:
-        missing_count = ds[var].isnull().sum().item() 
-        print(f"  - Checking '{var}': Found {missing_count} missing values.")
+        # compute() is necessary here to trigger the Dask graph and count nulls
+        missing_count = ds[var].isnull().sum().compute().item() 
+        print(f"  - Checking '{var}': Found {missing_count} missing values.")
         if missing_count > 0:
-            # Interpolation is a good strategy for spatial data
+            # Interpolation is added to the Dask graph, but not executed yet
             ds[var] = ds[var].interpolate_na(dim='lat', method='linear') 
-            print(f"  - Filled Null values in '{var}'.")
+            print(f"  - Filled Null values in '{var}'.")
     print("Data cleaning complete.")
     return ds
 
 # --- Data Saving Function ---
 
 def dataset_to_netcdf(ds, output_filepath):
-    """Saves the final dataset to a NetCDF4 file."""
+    """
+    Saves the final dataset to a NetCDF4 file, applying zlib compression
+    for faster I/O and smaller files.
+    """
     print(f"Saving dataset to NetCDF: {output_filepath}")
+    
     # Create directory if it doesn't exist
     output_dir = os.path.dirname(output_filepath)
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
+        
+    # 💡 OPTIMIZATION 2: Add Zlib compression and float32 dtype for efficiency.
+    encoding = {}
+    for var in ds.data_vars:
+        encoding[var] = {
+            'zlib': True, 
+            'complevel': 4, # Compression level 
+            'dtype': 'float32' # Reduces file size by ~50%
+        }
     
-    ds.to_netcdf(output_filepath, mode='w', format='NETCDF4')
-    print(f"  - Successfully saved to {output_filepath}")
+    # This call triggers the full, parallel Dask computation and write.
+    ds.to_netcdf(
+        output_filepath, 
+        mode='w', 
+        format='NETCDF4',
+        encoding=encoding # Apply compression
+    )
+    print(f"  - Successfully saved to {output_filepath}")
     
 # --- Main Pipeline ---
 
 def preprocessing_pipeline_rad(file_pattern, features_to_process):
 
-    # Step 1: Load data and select variables
+    # Step 1: Load data and select variables (Lazy, Dask-chunked)
     ds = data_ingestion(file_pattern, features_to_process)
     
-    # Step 2: Clean any missing values
+    # Step 2: Clean any missing values (Partial compute for null check)
     ds = clean_data(ds, features_to_process)
     
     # STEP 3 REMOVED - Feature engineering is not applicable to this data
@@ -83,7 +115,6 @@ if __name__ == '__main__':
     print("\n--- Final Processed Radiation Dataset ---")
     print(final_dataset)
     
-    # Save the final dataset
-    # Saving to CSV is not ideal for multi-dimensional grid data, NetCDF is preferred
+    # Save the final dataset (Triggers computation)
     print("\n--- Saving Final Data ---")
     dataset_to_netcdf(final_dataset, OUTPUT_NETCDF_PATH)

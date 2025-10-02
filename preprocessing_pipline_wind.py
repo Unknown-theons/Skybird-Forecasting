@@ -5,7 +5,6 @@ import glob
 
 # --- Configuration ---
 FILE_PATTERN = 'data_wind/*.nc4.nc4'
-OUTPUT_CSV_PATH = 'wind_data_processed.csv'
 OUTPUT_NETCDF_PATH = 'wind_data_processed.nc4'
 
 features_to_keep = [
@@ -25,19 +24,30 @@ features_to_keep = [
     'U10M', 'V10M',
 
     # need it for rain
-    'T2MDEW'
+    'T2MDEW', 'TQV'
 ]
 
 # --- Data Loading and Cleaning ---
 
 def data_ingestion(file_pattern, features_to_keep):
-    """Loads files and immediately selects a subset of variables."""
+    """
+    Loads files and immediately selects a subset of variables, 
+    using explicit Dask chunking for parallel processing.
+    """
     print(f"Loading files from: {file_pattern}")
     file_paths = sorted(glob.glob(file_pattern))
     if not file_paths:
         raise ValueError("No files found matching the pattern. Check your FILE_PATTERN.")
     
-    ds = xr.open_mfdataset(file_paths, combine='by_coords')
+    # 💡 OPTIMIZATION 1: Specify chunks to control Dask parallelism.
+    # Chunking by 'time' (e.g., 30 steps) is generally efficient for time-series.
+    chunks = {'time': 30, 'lat': 'auto', 'lon': 'auto'}
+    
+    ds = xr.open_mfdataset(
+        file_paths, 
+        combine='by_coords',
+        chunks=chunks # Apply chunking
+    )
     
     # Select only the necessary variables to save memory
     ds_selected = ds[features_to_keep]
@@ -48,12 +58,13 @@ def clean_data(ds, vars_to_check):
     """Checks for and fills missing values in the specified variables."""
     print("Starting data cleaning...")
     for var in vars_to_check:
+        # compute() is necessary here to get the actual count
         missing_count = ds[var].isnull().sum().compute().item()
-        print(f"   - Checking '{var}': Found {missing_count} missing values.")
+        print(f"   - Checking '{var}': Found {missing_count} missing values.")
         if missing_count > 0:
-            # Fill nulls using linear interpolation along the latitude dimension
+            # Interpolation is added to the Dask graph, but not executed yet
             ds[var] = ds[var].interpolate_na(dim='lat', method='linear') 
-            print(f"   - Filled Null values in '{var}'.")
+            print(f"   - Filled Null values in '{var}'.")
     print("Data cleaning complete.")
     return ds
 
@@ -61,7 +72,7 @@ def clean_data(ds, vars_to_check):
 
 def calculate_air_density(ds):
     """Calculates air density and adds it to the dataset."""
-    print("   - Engineering: Air Density...")
+    print("   - Engineering: Air Density...")
     R_d = 287.058  # Specific gas constant for dry air in J/(kg·K)
     virtual_temp = ds['T2M'] * (1 + 0.61 * ds['QV2M'])
     air_density = ds['PS'] / (R_d * virtual_temp)
@@ -73,7 +84,8 @@ def calculate_air_density(ds):
 
 def calculate_pressure_gradient(ds):
     """Calculates the magnitude of the sea level pressure gradient."""
-    print("   - Engineering: Pressure Gradient...")
+    print("   - Engineering: Pressure Gradient...")
+    # NOTE: mpcalc operations are Dask-aware and remain lazy
     slp_dx, slp_dy = mpcalc.gradient(ds['SLP'])
     pressure_gradient = np.sqrt(slp_dx**2 + slp_dy**2)
     ds['PRESSURE_GRADIENT'] = pressure_gradient
@@ -84,7 +96,8 @@ def calculate_pressure_gradient(ds):
 
 def calculate_temp_gradient(ds):
     """Calculates the magnitude of the 2-meter air temperature gradient."""
-    print("   - Engineering: Temperature Gradient...")
+    print("   - Engineering: Temperature Gradient...")
+    # NOTE: mpcalc operations are Dask-aware and remain lazy
     t2m_dx, t2m_dy = mpcalc.gradient(ds['T2M'])
     temp_gradient = np.sqrt(t2m_dx**2 + t2m_dy**2)
     ds['TEMP_GRADIENT'] = temp_gradient
@@ -102,54 +115,63 @@ def run_feature_engineering(ds):
     print("Feature engineering complete.")
     return ds
 
-# --- Data Saving Functions ---
-
-def dataset_to_csv(ds, output_filepath):
-    """Saves the final dataset to a CSV file."""
-    print(f"Saving dataset to CSV: {output_filepath}")
-    df = ds.to_dataframe().reset_index()
-    df.to_csv(output_filepath, index=False)
-    print("   - Successfully saved.")
+# --- Data Saving Function (NetCDF Only) ---
 
 def dataset_to_netcdf(ds, output_filepath):
-    """Saves the final dataset to a NetCDF4 file, supporting large files."""
+    """
+    Saves the final dataset to a NetCDF4 file, applying compression (zlib) 
+    for faster I/O and smaller files.
+    """
     print(f"Saving dataset to NetCDF4: {output_filepath}")
-    ds.to_netcdf(output_filepath, mode='w', format='NETCDF4', engine='netcdf4')
-    print("   - Successfully saved.")
+    
+    # 💡 OPTIMIZATION 2: Add Zlib compression and use float32 for efficiency.
+    encoding = {}
+    for var in ds.data_vars:
+        encoding[var] = {
+            'zlib': True, 
+            'complevel': 4, # Compression level (1-9)
+            'dtype': 'float32' # Reduces file size by 50%
+        }
+    
+    # The to_netcdf call triggers the full, parallel Dask computation.
+    ds.to_netcdf(
+        output_filepath, 
+        mode='w', 
+        format='NETCDF4', 
+        engine='netcdf4',
+        encoding=encoding # Apply compression
+    )
+    print("   - Successfully saved.")
     
 # --- Main Pipeline ---
 
 def preprocessing_pipeline(file_pattern, features_to_process):
 
-    # Step 1: Load data and select variables
+    # Step 1: Load data and select variables (Lazy, Dask-chunked)
     ds = data_ingestion(file_pattern, features_to_process)
     
-    # Step 2: Clean any missing values
+    # Step 2: Clean any missing values (Partial compute for null check)
     ds = clean_data(ds, features_to_process)
     
-    # Step 3: Run all feature engineering tasks
+    # Step 3: Run all feature engineering tasks (Lazy operations)
     ds = run_feature_engineering(ds)
     
-    print("\n Preprocessing pipeline finished successfully!")
+    print("\nPreprocessing pipeline finished successfully!")
     return ds
 
 # --- Execution Block ---
 
 if __name__ == '__main__':
-    # --- FIXED THIS BLOCK ---
-    # The function call now correctly matches the pipeline's definition.
-    # It passes the `features_to_keep` list to the pipeline.
-    
+    # Run the entire pipeline
     final_dataset = preprocessing_pipeline(
         file_pattern=FILE_PATTERN, 
         features_to_process=features_to_keep
     )
     
     # Print the final result to the console
-    print("\n Final Processed Dataset")
+    print("\n--- Final Processed Dataset ---")
     print(final_dataset)
     
-    # Save the final dataset to both formats
-    print("\n Saving Final Data")
-    dataset_to_csv(final_dataset, OUTPUT_CSV_PATH)
+    # Save the final dataset (Triggers computation)
+    print("\n--- Saving Final Data ---")
     dataset_to_netcdf(final_dataset, OUTPUT_NETCDF_PATH)
