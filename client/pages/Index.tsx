@@ -7,6 +7,7 @@ import { Search, MapPin } from "lucide-react";
 import { useGooglePlaces } from "@/hooks/use-google-places";
 import { MapPicker } from "@/components/MapPicker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 const concernOptions = [
   "Very Hot",
@@ -21,19 +22,78 @@ type ConcernOption = (typeof concernOptions)[number];
 export default function Index() {
   if (typeof document !== "undefined") document.title = "Will It Rain On My Parade?";
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [location, setLocation] = useState("");
   const [datetime, setDatetime] = useState("");
   const [selected, setSelected] = useState<ConcernOption[]>(["Very Wet", "Very Uncomfortable"]);
   const [coords, setCoords] = useState<{ lat?: number; lng?: number }>({});
+  const [isUserTyping, setIsUserTyping] = useState(false);
+  const [hasRedirected, setHasRedirected] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const { attachAutocomplete } = useGooglePlaces();
 
   useEffect(() => {
-    attachAutocomplete(inputRef.current, (p) => {
-      if (p.formatted) setLocation(p.formatted);
-      if (p.lat && p.lng) setCoords({ lat: p.lat, lng: p.lng });
-    });
-  }, [attachAutocomplete]);
+    // Only attach autocomplete if we're not redirecting
+    const urlParams = new URLSearchParams(window.location.search);
+    const isNewSearch = urlParams.get('new') === 'true';
+    
+    if (inputRef.current && (isNewSearch || !user || !user.preferences?.preferred_city)) {
+      attachAutocomplete(inputRef.current, (p) => {
+        if (p.formatted) setLocation(p.formatted);
+        if (p.lat && p.lng) setCoords({ lat: p.lat, lng: p.lng });
+      });
+    }
+  }, [attachAutocomplete, user]);
+
+  // Redirect logged-in users to results page with their preferred city
+  // But only if they haven't explicitly come to search for a new location
+  useEffect(() => {
+    console.log('=== REDIRECT CHECK DEBUG ===');
+    console.log('Loading:', loading);
+    console.log('User:', user);
+    console.log('User preferences:', user?.preferences);
+    console.log('Preferred city:', user?.preferences?.preferred_city);
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const isNewSearch = urlParams.get('new') === 'true';
+    console.log('Is new search:', isNewSearch);
+    console.log('Is user typing:', isUserTyping);
+    console.log('Has redirected:', hasRedirected);
+    
+    if (!loading && user && user.preferences?.preferred_city && !isNewSearch && !isUserTyping && !hasRedirected) {
+      // Add a small delay to prevent interference with user input
+      const redirectTimer = setTimeout(() => {
+        // Double-check that user is still not typing and hasn't already redirected
+        if (!isUserTyping && user?.preferences?.preferred_city && !hasRedirected) {
+          console.log('=== REDIRECT DEBUG ===');
+          console.log('User preferences:', user.preferences);
+          console.log('Preferred city:', user.preferences.preferred_city);
+          console.log('Redirecting user with preferred city:', user.preferences.preferred_city);
+          setHasRedirected(true); // Prevent multiple redirects
+          const params = new URLSearchParams();
+          params.set("location", user.preferences.preferred_city);
+          params.set("concerns", "rain,humidity"); // Default concerns
+          const url = `/results?${params.toString()}`;
+          console.log('Constructed URL:', url);
+          console.log('URL params:', params.toString());
+          console.log('About to navigate to:', url);
+          
+          // Try both navigate and window.location to ensure redirect works
+          try {
+            navigate(url);
+            console.log('Navigate called successfully');
+          } catch (error) {
+            console.error('Navigate failed, trying window.location:', error);
+            window.location.href = url;
+          }
+          console.log('=== END REDIRECT DEBUG ===');
+        }
+      }, 1000); // 1 second delay
+      
+      return () => clearTimeout(redirectTimer);
+    }
+    return undefined;
+  }, [user, loading, navigate, isUserTyping, hasRedirected]);
 
   const toggle = (c: ConcernOption) => {
     setSelected((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
@@ -61,6 +121,23 @@ export default function Index() {
     navigate(`/results?${params.toString()}`);
   };
 
+  // Show loading state while checking auth and potentially redirecting
+  if (loading) {
+    return (
+      <div className="relative overflow-hidden">
+        <section className="relative">
+          <AnimatedBackground />
+          <div className="container relative z-10 mx-auto max-w-5xl px-4 py-20 text-center md:py-28">
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+
   return (
     <div className="relative overflow-hidden">
       <section className="relative">
@@ -83,7 +160,20 @@ export default function Index() {
                   placeholder="Enter location"
                   className="h-12 pl-9 pr-12"
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
+                  onChange={(e) => {
+                    setLocation(e.target.value);
+                    setIsUserTyping(true);
+                  }}
+                  onFocus={() => setIsUserTyping(true)}
+                  onBlur={() => {
+                    // Reset typing state after a delay
+                    setTimeout(() => setIsUserTyping(false), 2000);
+                  }}
+                  onKeyDown={() => setIsUserTyping(true)}
+                  onKeyUp={() => {
+                    // Reset typing state after a delay when user stops typing
+                    setTimeout(() => setIsUserTyping(false), 1000);
+                  }}
                 />
                 <Dialog>
                   <DialogTrigger asChild>
@@ -96,7 +186,7 @@ export default function Index() {
                       <DialogTitle>Select location on map</DialogTitle>
                     </DialogHeader>
                     <MapPicker
-                      value={coords.lat && coords.lng ? { lat: coords.lat, lng: coords.lng } : undefined}
+                      value={coords.lat && coords.lng ? { lat: coords.lat, lng: coords.lng } : null}
                       onChange={(pos, addr) => {
                         setCoords(pos);
                         if (addr) setLocation(addr);
