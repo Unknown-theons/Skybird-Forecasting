@@ -67,6 +67,7 @@ export default function Header() {
           <SafeNav to="/model">Model</SafeNav>
           <SafeNav to="/contribute">Contribute</SafeNav>
           <SafeNav to="/about">About</SafeNav>
+          <SafeNav to="/faq">History</SafeNav>
         </nav>
         <div className="flex items-center gap-2">
           <ThemeButton />

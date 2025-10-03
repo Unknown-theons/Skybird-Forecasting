@@ -62,6 +62,21 @@ export function MapPicker({
     });
     mapRef.current = map;
 
+    // Built-in controls: navigation (zoom/rotate), fullscreen, scale, compact attribution
+    try {
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true, showZoom: true, showCompass: true }), "top-right");
+    } catch {}
+    try {
+      map.addControl(new mapboxgl.FullscreenControl(), "top-right");
+    } catch {}
+    try {
+      map.addControl(new mapboxgl.ScaleControl({ unit: "metric" }), "bottom-left");
+    } catch {}
+    try {
+      // Add compact attribution (Mapbox inserts one by default; compact ensures small pill on small screens)
+      map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
+    } catch {}
+
     // Draggable marker (your selected location)
     markerRef.current = new mapboxgl.Marker({ draggable: true })
       .setLngLat([centerLng, centerLat])
@@ -102,17 +117,24 @@ export function MapPicker({
         container.style.position = "relative";
 
         const button = document.createElement("button");
-        button.textContent = "Light";
+        button.textContent = "Style";
         Object.assign(button.style, {
-          padding: "10px 20px",
+          padding: "8px 10px",
           background: "#2F4F4F",
           color: "#ffffff",
           border: "1px solid #243b3b",
-          borderRadius: "2px",
+          borderRadius: "8px",
           boxShadow: "0 1px 2px rgba(0,0,0,0.14)",
           cursor: "pointer",
-          fontSize: "12px",
+          fontSize: "13px",
+          fontWeight: "600",
+          letterSpacing: "0.2px",
+          lineHeight: "1.2",
+          whiteSpace: "nowrap",
+          minWidth: "80px",
         } as CSSStyleDeclaration);
+        button.onmouseenter = () => { button.style.background = "#335b5b"; };
+        button.onmouseleave = () => { button.style.background = "#2F4F4F"; };
 
         const menu = document.createElement("div"); 
         Object.assign(menu.style, {
@@ -140,13 +162,13 @@ export function MapPicker({
           Object.assign(item.style, {
             width: "100%",
             textAlign: "left",
-            padding: "8px 10px",
-            borderRadius: "6px",
+            padding: "8px 5px",
+            borderRadius: "",
             border: "none",
             background: "transparent",
             color: "#ffffff",
             cursor: "pointer",
-            fontSize: "12px",
+            fontSize: "13px",
             transition: "background 120ms ease, color 120ms ease",
           } as CSSStyleDeclaration);
           item.onmouseenter = () => {
@@ -157,7 +179,8 @@ export function MapPicker({
           };
           item.onclick = () => {
             try { map.setStyle(styleUrl as any); } catch {}
-            button.textContent = label;
+            // keep compact label but show current in tooltip
+            button.title = `Style: ${label}`;
             menu.style.display = "none";
           };
           return item;
@@ -198,14 +221,19 @@ export function MapPicker({
         btn.title = "Select area";
         btn.textContent = "Area";
         Object.assign(btn.style, {
-          padding: "6px 10px",
+          padding: "8px 10px",
           background: "#2F4F4F",
           color: "#fff",
           border: "1px solid #243b3b",
           borderRadius: "8px",
           cursor: "pointer",
-          fontSize: "12px",
+          fontSize: "13px",
+          fontWeight: "600",
+          letterSpacing: "0.2px",
+          minWidth: "80px",
         } as CSSStyleDeclaration);
+        btn.onmouseenter = () => { btn.style.background = "#335b5b"; };
+        btn.onmouseleave = () => { btn.style.background = isSelectingRef.current ? "#1f3636" : "#2F4F4F"; };
         btn.onclick = () => {
           isSelectingRef.current = !isSelectingRef.current;
           btn.style.background = isSelectingRef.current ? "#1f3636" : "#2F4F4F";
@@ -267,11 +295,22 @@ export function MapPicker({
       src?.setData({ type: "FeatureCollection", features: [] } as any);
     };
 
-    map.on("mousedown", (e) => {
-      if (!isSelectingRef.current) return;
-      dragStartRef.current = e.lngLat;
-      map.getCanvas().style.cursor = "crosshair";
-    });
+    const getSelectionBounds = () => {
+      const src = map.getSource(selectionSourceId) as mapboxgl.GeoJSONSource | undefined;
+      const data = (src as any)?._data as GeoJSON.FeatureCollection | undefined;
+      const coords = (data?.features?.[0]?.geometry as any)?.coordinates?.[0] as [number, number][] | undefined;
+      if (!coords || coords.length === 0) return null;
+      let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+      for (const [lng, lat] of coords) {
+        if (lng < minLng) minLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lng > maxLng) maxLng = lng;
+        if (lat > maxLat) maxLat = lat;
+      }
+      return [[minLng, minLat], [maxLng, maxLat]] as [[number, number], [number, number]];
+    };
+
+    
 
     map.on("mousemove", (e) => {
       if (!isSelectingRef.current || !dragStartRef.current) return;
@@ -294,6 +333,10 @@ export function MapPicker({
       map.getCanvas().style.cursor = "";
       onAreaChange?.([[minLng, minLat], [maxLng, maxLat]]);
     });
+
+    // 📌 Top-right focus icon (fits selection or centers marker)
+    
+    
 
     // 📌 Live tracking using navigator.geolocation
     if (!("geolocation" in navigator)) {
