@@ -11,6 +11,36 @@ export interface ApiResponse<T> {
   status: number;
 }
 
+// Weather DTOs
+export interface WeatherPredictionDto {
+  id: number;
+  rain: number;
+  snow: number;
+  wind: number;
+  heat: number;
+  cold: number;
+  temperature: string;
+  very_hot: number;
+  very_cold: number;
+  very_windy: number;
+  very_wet: number;
+  recommendation: string;
+  created_at: string;
+}
+
+export interface CreateWeatherPredictionRequest {
+  rain: number;
+  snow: number;
+  wind: number;
+  heat: number;
+  cold: number;
+  temperature: string;
+  very_hot: number;
+  very_cold: number;
+  very_windy: number;
+  very_wet: number;
+}
+
 class ApiService {
   private baseURL = '/api';
   private defaultHeaders = {
@@ -86,6 +116,27 @@ class ApiService {
   // Demo endpoints
   async ping() {
     return this.request<{ message: string }>('/ping');
+  }
+
+  // Weather endpoints
+  async addWeatherPrediction(payload: CreateWeatherPredictionRequest) {
+    return this.request<{ status: string; id: number; recommendation: string }>(
+      '/add_prediction',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+  }
+
+  async getLatestWeatherPrediction() {
+    return this.request<WeatherPredictionDto>('/latest_prediction');
+  }
+
+  async getAllWeatherPredictions() {
+    return this.request<{ predictions: WeatherPredictionDto[]; count: number }>(
+      '/all_predictions'
+    );
   }
 }
 

@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { LogIn, Mail, Eye, EyeOff } from "lucide-react";
+import { Mail, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { login, register, getCurrentUser, setToken, removeToken, type User } from '@/lib/auth';
+import { login, register, getCurrentUser, setToken, removeToken } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Login() {
@@ -113,7 +113,7 @@ export default function Login() {
     }
 
     try {
-      await register({ email, password, full_name: fullName || undefined });
+      await register({ email, password, ...(fullName ? { full_name: fullName } : {}) });
       setError('');
       toast.success('Registration successful! Please login.');
       setEmail('');

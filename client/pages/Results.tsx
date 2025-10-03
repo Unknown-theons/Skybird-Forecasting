@@ -1,9 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { fadeInUp, slideUp, staggerContainer, staggerItem, springTransition } from "@/components/ui/motion";
 import {
   AreaChart,
   Area,
@@ -27,6 +29,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
 } from "lucide-react";
+import { apiService, type WeatherPredictionDto } from "@/lib/api";
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -101,6 +104,39 @@ export default function Results() {
 
   const latest = data[Math.min(data.length - 1, 6)];
 
+  const [serverLatest, setServerLatest] = useState<WeatherPredictionDto | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const res = await apiService.getLatestWeatherPrediction();
+      if (!isMounted) return;
+      if (res.data) {
+        setServerLatest(res.data);
+      } else if (res.status === 404) {
+        // Seed one prediction using current synthetic snapshot
+        const seed = await apiService.addWeatherPrediction({
+          rain: latest.rain,
+          snow: 0,
+          wind: latest.wind,
+          heat: Math.max(0, (latest.temp - 26) * 8),
+          cold: Math.max(0, (12 - latest.temp) * 10),
+          temperature: `${latest.temp.toFixed(1)}°C`,
+          very_hot: 0,
+          very_cold: 0,
+          very_windy: 0,
+          very_wet: latest.rain,
+        });
+        if (seed.data) {
+          // Fetch the created record to display
+          const after = await apiService.getLatestWeatherPrediction();
+          if (after.data) setServerLatest(after.data);
+        }
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
+
   const adverse = useMemo(() => {
     const hot = Math.max(0, Math.min(100, (latest.temp - 26) * 8));
     const cold = Math.max(0, Math.min(100, (12 - latest.temp) * 10));
@@ -127,153 +163,335 @@ export default function Results() {
     rain: Math.round(((latest.rain - prev.rain) / Math.max(1, Math.abs(prev.rain))) * 100),
   };
 
-  const recommendation = latest.comfort >= 65
-    ? { tone: "good" as const, icon: CheckCircle2, text: "Excellent conditions for outdoor plans.", sub: "Low risk of disruptive weather." }
-    : { tone: "caution" as const, icon: AlertTriangle, text: "Conditions may be limiting.", sub: "Plan flexible or indoor options." };
+  const recommendation = serverLatest
+    ? { tone: serverLatest.recommendation === "Good" ? "good" as const : "caution" as const, icon: serverLatest.recommendation === "Good" ? CheckCircle2 : AlertTriangle, text: serverLatest.recommendation, sub: "Based on latest backend prediction" }
+    : latest.comfort >= 65
+      ? { tone: "good" as const, icon: CheckCircle2, text: "Excellent conditions for outdoor plans.", sub: "Low risk of disruptive weather." }
+      : { tone: "caution" as const, icon: AlertTriangle, text: "Conditions may be limiting.", sub: "Plan flexible or indoor options." };
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-2 text-2xl font-semibold tracking-tight">Will It Rain On My Parade?</h1>
-      <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+    <motion.div 
+      className="container mx-auto max-w-5xl px-4 py-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+    >
+      <motion.h1 
+        className="mb-2 text-2xl font-semibold tracking-tight"
+        variants={slideUp}
+        initial="initial"
+        animate="animate"
+        transition={springTransition}
+      >
+        Will It Rain On My Parade?
+      </motion.h1>
+      <motion.div 
+        className="mb-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground"
+        variants={fadeInUp}
+        initial="initial"
+        animate="animate"
+        transition={{ ...springTransition, delay: 0.2 }}
+      >
         <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {location}</span>
         {datetime && <span className="inline-flex items-center gap-1"><CalendarDays className="h-4 w-4" /> {datetime}</span>}
         <div className="ml-auto flex items-center gap-2">
-          {concerns.map((c) => (
-            <Badge key={c} variant="secondary" className="capitalize">{c}</Badge>
+          {concerns.map((c, index) => (
+            <motion.div
+              key={c}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ 
+                ...springTransition, 
+                delay: 0.4 + (index * 0.1)
+              }}
+            >
+              <Badge variant="secondary" className="capitalize">{c}</Badge>
+            </motion.div>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* Overall recommendation alert with applied background */}
-      <div
+      <motion.div
         className="mb-8 relative overflow-hidden rounded-2xl min-h-[93px] shadow-soft bg-cover bg-center p-8"
         style={{ backgroundImage: "linear-gradient(to top, var(--primary-superlight), transparent), url('https://lh3.googleusercontent.com/aida-public/AB6AXuAwVWJYsyORS7yKut8-omHhxJsq05p_JBtgYhHAF2EKfZqXVHjxbdkhIl6oMJVJtnX-LWOb93COAjEwVIRIgoqJ68XIhU85uDvuF8lYeO1QKW-m_Df-uyRC_itULhuCzVrSzig0vCzTQNN0eHnWnV3DR2RQjHgxzPLJRyzgLRvxxQFXY7BNL_AF9lRAApKvVb39gneThwGah4HkLsyOWyVzGdIIz_fcracS1ahpSU1K-aUH6m8QE01V9oBy1g9GA3rB_DxAyPYWKaIS')" }}
+        variants={fadeInUp}
+        initial="initial"
+        animate="animate"
+        transition={{ ...springTransition, delay: 0.4 }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-background/70 to-transparent" />
         <div className="relative flex items-start gap-3">
-          {(() => { const RecIcon = recommendation.icon; return (
-            <RecIcon className={`mt-0.5 h-6 w-6 ${recommendation.tone === "good" ? "text-[hsl(var(--wc-azure-600))]" : "text-[hsl(var(--wc-azure-700))]"}`} />
-          ); })()}
-          <div>
+          <motion.div
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ 
+              ...springTransition, 
+              delay: 0.6,
+              type: "spring",
+              stiffness: 200,
+              damping: 15
+            }}
+          >
+            {(() => { const RecIcon = recommendation.icon; return (
+              <RecIcon className={`mt-0.5 h-6 w-6 ${recommendation.tone === "good" ? "text-[hsl(var(--wc-azure-600))]" : "text-[hsl(var(--wc-azure-700))]"}`} />
+            ); })()}
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ ...springTransition, delay: 0.8 }}
+          >
             <p className="font-semibold text-foreground drop-shadow-md">Overall Recommendation: {recommendation.text}</p>
             <p className="text-sm text-foreground drop-shadow">{recommendation.sub}</p>
-          </div>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Icon square cards */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {adverse.map((item) => {
+      <motion.div 
+        className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+      >
+        {adverse.map((item, index) => {
           const isTop = item.key === top.key;
           return (
-            <Card
+            <motion.div
               key={item.key}
-              className={`transition-shadow ${isTop ? "ring-2 ring-primary/60 dark:ring-primary/50 bg-[hsl(var(--wc-sky-50))] dark:bg-secondary/20 shadow-soft-lg" : "hover:shadow-soft-lg"}`}
+              variants={staggerItem}
+              transition={{ ...springTransition, delay: index * 0.1 }}
             >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <item.icon className={`h-6 w-6 ${item.key === "Wind" ? "text-muted-foreground" : item.color} ${isTop ? "drop-shadow-md" : ""}`} />
-                      <span className={`${isTop ? "font-semibold" : ""}`}>{item.key === "Hot" ? "Very Hot" : item.key === "Cold" ? "Very Cold" : item.key === "Wind" ? "Very Wind" : item.key === "Rain" ? "Very Rainy" : item.key === "Uncomfortable" ? "Very Uncomfortable" : item.key}</span>
+              <Card
+                className={`transition-shadow ${isTop ? "ring-2 ring-primary/60 dark:ring-primary/50 bg-[hsl(var(--wc-sky-50))] dark:bg-secondary/20 shadow-soft-lg" : "hover:shadow-soft-lg"}`}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <item.icon className={`h-6 w-6 ${item.key === "Wind" ? "text-muted-foreground" : item.color} ${isTop ? "drop-shadow-md" : ""}`} />
+                        <span className={`${isTop ? "font-semibold" : ""}`}>{item.key === "Hot" ? "Very Hot" : item.key === "Cold" ? "Very Cold" : item.key === "Wind" ? "Very Wind" : item.key === "Rain" ? "Very Rainy" : item.key === "Uncomfortable" ? "Very Uncomfortable" : item.key}</span>
+                      </div>
+                      <motion.span 
+                        className={`font-semibold ${isTop ? "text-xl" : "text-lg"}`}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ 
+                          ...springTransition, 
+                          delay: 0.5 + (index * 0.1),
+                          type: "spring",
+                          stiffness: 300,
+                          damping: 20
+                        }}
+                      >
+                        {item.value}%
+                      </motion.span>
                     </div>
-                    <span className={`font-semibold ${isTop ? "text-xl" : "text-lg"}`}>{item.value}%</span>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Progress value={item.value} className={`h-2 ${isTop ? "bg-primary/20" : ""}`} />
-              </CardContent>
-            </Card>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ 
+                      duration: 1,
+                      delay: 0.8 + (index * 0.1),
+                      ease: "easeOut"
+                    }}
+                    style={{ transformOrigin: "left" }}
+                  >
+                    <Progress value={item.value} className={`h-2 ${isTop ? "bg-primary/20" : ""}`} />
+                  </motion.div>
+                </CardContent>
+              </Card>
+            </motion.div>
           );
         })}
-        <Card className="flex items-center justify-center text-center">
-          <CardContent className="p-6">
-            <p className="text-muted-foreground">Want to check another location or event?</p>
-            <button
-              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
-              onClick={() => navigate("/")}
-            >
-              <RefreshCw className="h-4 w-4" /> New Forecast
-            </button>
-          </CardContent>
-        </Card>
-      </div>
+        <motion.div
+          variants={staggerItem}
+          transition={{ ...springTransition, delay: 0.6 }}
+        >
+          <Card className="flex items-center justify-center text-center">
+            <CardContent className="p-6">
+              <p className="text-muted-foreground">Want to check another location or event?</p>
+              <button
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
+                onClick={() => navigate("/")}
+              >
+                <RefreshCw className="h-4 w-4" /> New Forecast
+              </button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </motion.div>
 
       {/* One concise tip */}
-      <div className="mt-8 rounded-xl border bg-card p-4 shadow-soft">
-        <div className="text-sm">
+      <motion.div 
+        className="mt-8 rounded-xl border bg-card p-4 shadow-soft"
+        variants={fadeInUp}
+        initial="initial"
+        animate="animate"
+        transition={{ ...springTransition, delay: 1.0 }}
+      >
+        <motion.div 
+          className="text-sm"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ ...springTransition, delay: 1.2 }}
+        >
           <span className="font-medium">Top tip: </span>
           {top.full === "Very Wet" && "Carry an umbrella and waterproof layers."}
           {top.full === "Very Windy" && "Secure loose items and consider windproof clothing."}
           {top.full === "Very Hot" && "Avoid peak sun hours and stay hydrated."}
           {top.full === "Very Cold" && "Layer up; consider gloves and a hat."}
           {top.full === "Very Uncomfortable" && "Plan flexible indoor options as backup."}
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Inserted section: Current Conditions */}
-      <section className="mt-8">
-        <h2 className="mb-3 text-2xl font-bold tracking-[-0.015em] text-foreground">Current Conditions</h2>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <motion.section 
+        className="mt-8"
+        variants={fadeInUp}
+        initial="initial"
+        animate="animate"
+        transition={{ ...springTransition, delay: 1.4 }}
+      >
+        <motion.h2 
+          className="mb-3 text-2xl font-bold tracking-[-0.015em] text-foreground"
+          variants={slideUp}
+          initial="initial"
+          animate="animate"
+          transition={{ ...springTransition, delay: 1.6 }}
+        >
+          Current Conditions
+        </motion.h2>
+        <motion.div 
+          className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4"
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+        >
           {/* Temperature */}
-          <Card className="bg-card border shadow-soft">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-base font-medium">Temperature</p>
-                <Thermometer className="h-5 w-5 text-orange-400" />
-              </div>
-              <p className="mt-1 text-4xl font-bold text-foreground">{latest.temp.toFixed(1)}°C</p>
-              <div className={`mt-1 flex items-center gap-1 text-sm ${deltas.temp >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {deltas.temp >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                <span>{deltas.temp >= 0 ? "+" : ""}{deltas.temp}%</span>
-              </div>
-            </CardContent>
-          </Card>
+          <motion.div
+            variants={staggerItem}
+            transition={{ ...springTransition, delay: 1.8 }}
+          >
+            <Card className="bg-card border shadow-soft">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <p className="text-muted-foreground text-base font-medium">Temperature</p>
+                  <Thermometer className="h-5 w-5 text-orange-400" />
+                </div>
+                <motion.p 
+                  className="mt-1 text-4xl font-bold text-foreground"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ 
+                    ...springTransition, 
+                    delay: 2.0,
+                    type: "spring",
+                    stiffness: 300,
+                    damping: 20
+                  }}
+                >
+                  {latest.temp.toFixed(1)}°C
+                </motion.p>
+                <motion.div 
+                  className={`mt-1 flex items-center gap-1 text-sm ${deltas.temp >= 0 ? "text-green-600" : "text-red-600"}`}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ ...springTransition, delay: 2.2 }}
+                >
+                  <motion.div
+                    initial={{ scale: 0, rotate: -45 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ 
+                      ...springTransition, 
+                      delay: 2.4,
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 15
+                    }}
+                  >
+                    {deltas.temp >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                  </motion.div>
+                  <span>{deltas.temp >= 0 ? "+" : ""}{deltas.temp}%</span>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
           {/* Humidity */}
-          <Card className="bg-card border shadow-soft">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-base font-medium">Humidity</p>
-                <Droplets className="h-5 w-5 text-blue-400" />
-              </div>
-              <p className="mt-1 text-4xl font-bold text-foreground">{latest.humidity}%</p>
-              <div className={`mt-1 flex items-center gap-1 text-sm ${deltas.humidity >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {deltas.humidity >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                <span>{deltas.humidity >= 0 ? "+" : ""}{deltas.humidity}%</span>
-              </div>
-            </CardContent>
-          </Card>
+          <motion.div
+            variants={staggerItem}
+            transition={{ ...springTransition, delay: 2.0 }}
+          >
+            <Card className="bg-card border shadow-soft">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <p className="text-muted-foreground text-base font-medium">Humidity</p>
+                  <Droplets className="h-5 w-5 text-blue-400" />
+                </div>
+                <motion.p className="mt-1 text-4xl font-bold text-foreground" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...springTransition, delay: 2.2, type: "spring", stiffness: 300, damping: 20 }}>
+                  {latest.humidity}%
+                </motion.p>
+                <motion.div className={`mt-1 flex items-center gap-1 text-sm ${deltas.humidity >= 0 ? "text-green-600" : "text-red-600"}`} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ ...springTransition, delay: 2.4 }}>
+                  <motion.div initial={{ scale: 0, rotate: -45 }} animate={{ scale: 1, rotate: 0 }} transition={{ ...springTransition, delay: 2.6, type: "spring", stiffness: 400, damping: 15 }}>
+                    {deltas.humidity >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                  </motion.div>
+                  <span>{deltas.humidity >= 0 ? "+" : ""}{deltas.humidity}%</span>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
           {/* Wind */}
-          <Card className="bg-card border shadow-soft">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-base font-medium">Wind Speed</p>
-                <Wind className="h-5 w-5 text-gray-400" />
-              </div>
-              <p className="mt-1 text-4xl font-bold text-foreground">{latest.wind.toFixed(1)} km/h</p>
-              <div className={`mt-1 flex items-center gap-1 text-sm ${deltas.wind >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {deltas.wind >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                <span>{deltas.wind >= 0 ? "+" : ""}{deltas.wind}%</span>
-              </div>
-            </CardContent>
-          </Card>
+          <motion.div
+            variants={staggerItem}
+            transition={{ ...springTransition, delay: 2.2 }}
+          >
+            <Card className="bg-card border shadow-soft">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <p className="text-muted-foreground text-base font-medium">Wind Speed</p>
+                  <Wind className="h-5 w-5 text-gray-400" />
+                </div>
+                <motion.p className="mt-1 text-4xl font-bold text-foreground" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...springTransition, delay: 2.4, type: "spring", stiffness: 300, damping: 20 }}>
+                  {latest.wind.toFixed(1)} km/h
+                </motion.p>
+                <motion.div className={`mt-1 flex items-center gap-1 text-sm ${deltas.wind >= 0 ? "text-green-600" : "text-red-600"}`} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ ...springTransition, delay: 2.6 }}>
+                  <motion.div initial={{ scale: 0, rotate: -45 }} animate={{ scale: 1, rotate: 0 }} transition={{ ...springTransition, delay: 2.8, type: "spring", stiffness: 400, damping: 15 }}>
+                    {deltas.wind >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                  </motion.div>
+                  <span>{deltas.wind >= 0 ? "+" : ""}{deltas.wind}%</span>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
           {/* Rain */}
-          <Card className="bg-card border shadow-soft">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <p className="text-muted-foreground text-base font-medium">Rain Probability</p>
-                <Umbrella className="h-5 w-5 text-indigo-400" />
-              </div>
-              <p className="mt-1 text-4xl font-bold text-foreground">{latest.rain}%</p>
-              <div className={`mt-1 flex items-center gap-1 text-sm ${deltas.rain >= 0 ? "text-red-600" : "text-green-600"}`}>
-                {deltas.rain >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
-                <span>{deltas.rain >= 0 ? "+" : ""}{deltas.rain}%</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+          <motion.div
+            variants={staggerItem}
+            transition={{ ...springTransition, delay: 2.4 }}
+          >
+            <Card className="bg-card border shadow-soft">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <p className="text-muted-foreground text-base font-medium">Rain Probability</p>
+                  <Umbrella className="h-5 w-5 text-indigo-400" />
+                </div>
+                <motion.p className="mt-1 text-4xl font-bold text-foreground" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...springTransition, delay: 2.6, type: "spring", stiffness: 300, damping: 20 }}>
+                  {latest.rain}%
+                </motion.p>
+                <motion.div className={`mt-1 flex items-center gap-1 text-sm ${deltas.rain >= 0 ? "text-red-600" : "text-green-600"}`} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ ...springTransition, delay: 2.8 }}>
+                  <motion.div initial={{ scale: 0, rotate: -45 }} animate={{ scale: 1, rotate: 0 }} transition={{ ...springTransition, delay: 3.0, type: "spring", stiffness: 400, damping: 15 }}>
+                    {deltas.rain >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                  </motion.div>
+                  <span>{deltas.rain >= 0 ? "+" : ""}{deltas.rain}%</span>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
+      </motion.section>
 
  {/* Probability Section (from ML output or synthetic values) */}
       <section className="mt-8">
@@ -340,61 +558,108 @@ export default function Results() {
 
 
       {/* Trends using provided visual style */}
-      <section className="mt-8">
-        <h2 className="mb-3 text-lg font-semibold tracking-tight">Trends</h2>
-        <div className="grid gap-6 md:grid-cols-2">
+      <motion.section 
+        className="mt-8"
+        variants={fadeInUp}
+        initial="initial"
+        animate="animate"
+        transition={{ ...springTransition, delay: 3.2 }}
+      >
+        <motion.h2 
+          className="mb-3 text-lg font-semibold tracking-tight"
+          variants={slideUp}
+          initial="initial"
+          animate="animate"
+          transition={{ ...springTransition, delay: 3.4 }}
+        >
+          Trends
+        </motion.h2>
+        <motion.div 
+          className="grid gap-6 md:grid-cols-2"
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+        >
           {/* Temperature area graph (Recharts) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Temperature Trend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{ temp: { label: "Temp (°C)", color: "hsl(var(--wc-azure-600))" } }}
-                className="h-56"
-              >
-                <AreaChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                  <defs>
-                    <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--color-temp)" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="var(--color-temp)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hour" tick={{ fontSize: 12 }} interval={0} />
-                  <YAxis tick={{ fontSize: 12 }} domain={[0, "dataMax + 5"]} width={30} />
-                  <Area type="monotone" dataKey="temp" stroke="var(--color-temp)" strokeWidth={2.5} fill="url(#tempGradient)" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                </AreaChart>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+          <motion.div
+            variants={staggerItem}
+            transition={{ ...springTransition, delay: 3.6 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Temperature Trend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ ...springTransition, delay: 3.8 }}
+                >
+                  <ChartContainer
+                    config={{ temp: { label: "Temp (°C)", color: "hsl(var(--wc-azure-600))" } }}
+                    className="h-56"
+                  >
+                    <AreaChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+                      <defs>
+                        <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--color-temp)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="var(--color-temp)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="hour" tick={{ fontSize: 12 }} interval={0} />
+                      <YAxis tick={{ fontSize: 12 }} domain={[0, "dataMax + 5"]} width={30} />
+                      <Area type="monotone" dataKey="temp" stroke="var(--color-temp)" strokeWidth={2.5} fill="url(#tempGradient)" />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                    </AreaChart>
+                  </ChartContainer>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {/* Comfort index bars (Recharts) */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Comfort Index Trend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer
-                config={{ comfort: { label: "Comfort", color: "hsl(var(--wc-teal-400))" } }}
-                className="h-56"
-              >
-                <BarChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hour" tick={{ fontSize: 12 }} interval={0} />
-                  <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} width={30} />
-                  <Bar dataKey="comfort" fill="var(--color-comfort)" radius={[6, 6, 0, 0]} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                </BarChart>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+          <motion.div
+            variants={staggerItem}
+            transition={{ ...springTransition, delay: 3.8 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Comfort Index Trend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ ...springTransition, delay: 4.0 }}
+                >
+                  <ChartContainer
+                    config={{ comfort: { label: "Comfort", color: "hsl(var(--wc-teal-400))" } }}
+                    className="h-56"
+                  >
+                    <BarChart data={data} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="hour" tick={{ fontSize: 12 }} interval={0} />
+                      <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} width={30} />
+                      <Bar dataKey="comfort" fill="var(--color-comfort)" radius={[6, 6, 0, 0]} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                    </BarChart>
+                  </ChartContainer>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
+      </motion.section>
 
-      
-      <div className="mt-6 text-center text-xs text-muted-foreground">Predictions synthesised from multiple data signals. Updated just now.</div>
-    </div>
+      <motion.div 
+        className="mt-6 text-center text-xs text-muted-foreground"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...springTransition, delay: 4.2 }}
+      >
+        Predictions synthesised from multiple data signals. Updated just now.
+      </motion.div>
+    </motion.div>
   );
 }
