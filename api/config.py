@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     
     # Database
     database_path: str = "app.db"
+
+    # ML model path (defaults to project root xgb_multitarget_model.pkl)
+    model_path: str = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'xgb_multitarget_model.pkl'))
     
     # JWT
     jwt_secret_key: str

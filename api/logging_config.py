@@ -13,11 +13,11 @@ def setup_logging(level: str = "INFO", environment: str = "development") -> None
     # Create formatter
     if environment == "production":
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            '%(asctime)s - %(name)s - %(levelname)s - %(request_id)s - %(message)s'
         )
     else:
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
+            '%(asctime)s - %(name)s - %(levelname)s - %(request_id)s - %(funcName)s:%(lineno)d - %(message)s'
         )
     
     # Configure root logger
