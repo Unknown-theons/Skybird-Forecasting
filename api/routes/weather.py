@@ -4,8 +4,34 @@ from sqlalchemy.exc import SQLAlchemyError
 from logging_config import get_logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from typing import List, Dict, Any
+from config import settings
+import os
+import numpy as np
+from joblib import load as joblib_load
+import threading
 
 logger = get_logger(__name__)
+
+# ML model lazy loader (thread-safe)
+_model = None
+_model_lock = threading.Lock()
+
+def load_ml_model():
+    global _model
+    if _model is None:
+        with _model_lock:
+            if _model is None:
+                model_path = settings.model_path
+                if not os.path.exists(model_path):
+                    logger.error(f"ML model file not found at {model_path}")
+                    raise FileNotFoundError("ML model file not found")
+                try:
+                    _model = joblib_load(model_path)
+                    logger.info(f"ML model loaded from {model_path}")
+                except Exception as e:
+                    logger.error(f"Failed to load ML model: {e}")
+                    raise
+    return _model
 
 # Create blueprint
 bp = Blueprint('weather', __name__, url_prefix='/api')
@@ -333,4 +359,146 @@ def get_all_predictions():
             
     except Exception as e:
         logger.error(f"Error in get_all_predictions: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+@bp.route('/model/predict', methods=['POST'])
+@jwt_required()
+def model_predict():
+    """
+    Run ML model inference.
+    
+    Request JSON:
+    {
+      "features": one of:
+        - dict of feature_name -> value (in insertion order or with feature_order)
+        - list of dicts (batch)
+        - list of lists (batch), optionally provide feature_order for docs
+      "feature_order": ["f1", "f2", ...] (optional, used when features are dicts)
+      "output_mapping": ["rain", "snow", "wind", "heat", "cold"] (optional)
+      "persist": true|false (optional, default false)
+      "extras": [ { "temperature": "hot", "very_hot": 0.8, "very_cold": 0.1, "very_windy": 0.7, "very_wet": 0.4 }, ... ] (optional, used when persist=true)
+    }
+    
+    Response JSON:
+    { "predictions": [ { "rain": ..., "snow": ..., "wind": ..., "heat": ..., "cold": ... }, ... ],
+      "persisted_ids": [1,2,...] (if persisted)
+    }
+    """
+    try:
+        identity = get_jwt_identity()
+        payload = request.get_json()
+        if not payload:
+            return jsonify({"error": "No JSON data provided"}), 400
+        features = payload.get("features")
+        feature_order = payload.get("feature_order")
+        output_mapping = payload.get("output_mapping", ["rain", "snow", "wind", "heat", "cold"])
+        persist = bool(payload.get("persist", False))
+        extras_list = payload.get("extras")
+
+        if features is None:
+            return jsonify({"error": "'features' is required"}), 400
+
+        # Prepare X
+        X: List[List[float]] = []
+        if isinstance(features, dict):
+            if feature_order and isinstance(feature_order, list):
+                X = [[features.get(k) for k in feature_order]]
+            else:
+                # preserve insertion order of dict values
+                X = [list(features.values())]
+        elif isinstance(features, list):
+            if len(features) == 0:
+                return jsonify({"error": "'features' must be non-empty"}), 400
+            if isinstance(features[0], dict):
+                if feature_order and isinstance(feature_order, list):
+                    X = [[row.get(k) for k in feature_order] for row in features]
+                else:
+                    X = [list(row.values()) for row in features]
+            else:
+                # assume list of lists
+                X = features
+        else:
+            return jsonify({"error": "'features' must be a dict, list of dicts, or list of lists"}), 400
+
+        # Convert to numpy array
+        try:
+            X_np = np.array(X, dtype=float)
+        except Exception:
+            return jsonify({"error": "All feature values must be numeric"}), 400
+
+        # Load model and predict
+        model = load_ml_model()
+        try:
+            preds = model.predict(X_np)
+        except Exception as e:
+            logger.error(f"Model prediction failed: {e}")
+            return jsonify({"error": "Model prediction failed"}), 500
+
+        # Normalize predictions to 2D array
+        preds_np = np.array(preds)
+        if preds_np.ndim == 1:
+            preds_np = preds_np.reshape(-1, 1)
+        n_samples, n_targets = preds_np.shape
+
+        # Build prediction dicts
+        predictions: List[Dict[str, Any]] = []
+        for i in range(n_samples):
+            row = preds_np[i].tolist()
+            if len(output_mapping) == n_targets:
+                pred_dict = {output_mapping[j]: row[j] for j in range(n_targets)}
+            else:
+                pred_dict = {f"output_{j}": row[j] for j in range(n_targets)}
+            predictions.append(pred_dict)
+
+        persisted_ids: List[int] = []
+        if persist:
+            session = get_weather_session()
+            try:
+                for idx, pred in enumerate(predictions):
+                    # Map core variables
+                    rain = float(pred.get("rain", 0.0))
+                    snow = float(pred.get("snow", 0.0))
+                    wind = float(pred.get("wind", 0.0))
+                    heat = float(pred.get("heat", 0.0))
+                    cold = float(pred.get("cold", 0.0))
+
+                    recommendation = WeatherPrediction.calculate_recommendation(
+                        rain=rain, snow=snow, wind=wind, heat=heat, cold=cold
+                    )
+
+                    extras = extras_list[idx] if (isinstance(extras_list, list) and idx < len(extras_list)) else {}
+                    temperature = str(extras.get("temperature", "unknown"))
+                    very_hot = float(extras.get("very_hot", 0.0))
+                    very_cold = float(extras.get("very_cold", 0.0))
+                    very_windy = float(extras.get("very_windy", 0.0))
+                    very_wet = float(extras.get("very_wet", 0.0))
+
+                    obj = WeatherPrediction(
+                        rain=rain,
+                        snow=snow,
+                        wind=wind,
+                        heat=heat,
+                        cold=cold,
+                        temperature=temperature,
+                        very_hot=very_hot,
+                        very_cold=very_cold,
+                        very_windy=very_windy,
+                        very_wet=very_wet,
+                        recommendation=recommendation
+                    )
+                    session.add(obj)
+                    session.flush()  # get id without committing each time
+                    persisted_ids.append(obj.id)
+                session.commit()
+                logger.info(f"Persisted {len(persisted_ids)} predictions by {identity}")
+            except SQLAlchemyError as e:
+                session.rollback()
+                logger.error(f"Database error while persisting predictions: {e}")
+                return jsonify({"error": "Database error occurred"}), 500
+            finally:
+                session.close()
+
+        return jsonify({"predictions": predictions, "persisted_ids": persisted_ids}), 200
+    except Exception as e:
+        logger.error(f"Error in model_predict: {e}")
         return jsonify({"error": "Internal server error"}), 500
