@@ -8,4 +8,8 @@ alembic==1.13.2
 pydantic==2.9.2
 pydantic-settings==2.4.0
 email-validator==2.2.0
+flasgger==0.9.7.1
+flask-limiter==3.8.0
+prometheus-flask-exporter==0.23.1
+Flask-Caching==2.3.0
 
