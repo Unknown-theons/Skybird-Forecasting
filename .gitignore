@@ -1,5 +1,3 @@
-# Combined .gitignore (merged from Frontend-branch and Webapp)
-
 # Dependencies
 node_modules/
 
@@ -14,22 +12,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
-# Databases
-*.db
-*.sqlite
-*.sqlite3
-*.sqlite*
-app.db
-weather.db
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.*
 
 # IDE and editor files
 .vscode/
@@ -125,7 +107,6 @@ out/
 
 # Python packaging
 *.egg-info/
-# (Note: Python's dist/ and build/ above are already covered)
 
 # Flask specific
 instance/
