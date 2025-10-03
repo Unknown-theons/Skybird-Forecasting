@@ -152,3 +152,36 @@ dmypy.json
 
 # Pyre
 .pyre/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+*.db3
+*.s3db
+*.sl3
+*.db2
+*.dbf
+*.mdb
+*.accdb
+*.frm
+*.myd
+*.myi
+*.ibd
+*.sql
+*.dump
+*.backup
+*.bak
+*.db-backup
+*.sql-backup
+
+# Database directories
+data/
+database/
+db/
+databases/
+sql/
+migrations/
