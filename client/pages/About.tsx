@@ -1,7 +1,9 @@
+import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Mail, Linkedin } from "lucide-react";
+import { fadeInUp, slideUp, staggerContainer, staggerItem, springTransition } from "@/components/ui/motion";
 
 const team = [
   // Example of explicit linkedin handle added
@@ -52,48 +54,78 @@ function linkedinFor(member: typeof team[number]) {
 
 export default function About() {
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-10">
-      <h1 className="mb-2">About WeatherComfort</h1>
-      <p className="mb-8 max-w-3xl text-muted-foreground">
+    <motion.div 
+      className="container mx-auto max-w-6xl px-4 py-10"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+    >
+      <motion.h1 
+        className="mb-2"
+        variants={slideUp}
+        initial="initial"
+        animate="animate"
+        transition={springTransition}
+      >
+        About WeatherComfort
+      </motion.h1>
+      <motion.p 
+        className="mb-8 max-w-3xl text-muted-foreground"
+        variants={fadeInUp}
+        initial="initial"
+        animate="animate"
+        transition={{ ...springTransition, delay: 0.2 }}
+      >
         Our mission is to deliver clear, personalized weather insights using reliable data and modern design. Meet the team building it.
-      </p>
-      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        {team.map((m) => {
+      </motion.p>
+      <motion.div 
+        className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
+        variants={staggerContainer}
+        initial="initial"
+        animate="animate"
+      >
+        {team.map((m, index) => {
           // ⚠️ STEP 4: Pass the whole member object 'm' to the functions
           const email = emailFor(m);
           const linkedin = linkedinFor(m);
           return (
-            <Card key={`${m.name}-${m.role}`} className="transition-all hover:shadow-soft-lg flex flex-col">
-              <CardHeader className="items-center text-center pb-2">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src={m.img} alt={m.name || m.role} />
-                  <AvatarFallback>{m.initials}</AvatarFallback>
-                </Avatar>
-              </CardHeader>
-              <CardContent className="text-center">
-                <CardTitle className="text-base font-semibold leading-tight min-h-6">
-                  {m.name || ""}
-                </CardTitle>
-                <div className={`mt-1 ${m.name === "Mohamed Hussien" ? "text-xs" : "text-sm"} text-muted-foreground font-semibold`}>{m.role}</div>
-                <div className="mt-3 flex items-center justify-center gap-2">
-                  <Button asChild variant="secondary" size="sm" className="gap-2">
-                    <a href={`mailto:${email}`}>
-                      <Mail className="h-4 w-4" />
-                      <span>Email</span>
-                    </a>
-                  </Button>
-                  <Button asChild variant="secondary" size="sm" className="gap-2">
-                    <a href={linkedin} target="_blank" rel="noreferrer noopener">
-                      <Linkedin className="h-4 w-4" />
-                      <span>LinkedIn</span>
-                    </a>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <motion.div
+              key={`${m.name}-${m.role}`}
+              variants={staggerItem}
+              transition={{ ...springTransition, delay: index * 0.1 }}
+            >
+              <Card className="transition-all hover:shadow-soft-lg flex flex-col h-full">
+                <CardHeader className="items-center text-center pb-2">
+                  <Avatar className="h-20 w-20">
+                    <AvatarImage src={m.img} alt={m.name || m.role} />
+                    <AvatarFallback>{m.initials}</AvatarFallback>
+                  </Avatar>
+                </CardHeader>
+                <CardContent className="text-center flex-1 flex flex-col">
+                  <CardTitle className="text-base font-semibold leading-tight min-h-6">
+                    {m.name || ""}
+                  </CardTitle>
+                  <div className={`mt-1 ${m.name === "Mohamed Hussien" ? "text-xs" : "text-sm"} text-muted-foreground font-semibold`}>{m.role}</div>
+                  <div className="mt-3 flex items-center justify-center gap-2 flex-1">
+                    <Button asChild variant="secondary" size="sm" className="gap-2">
+                      <a href={`mailto:${email}`}>
+                        <Mail className="h-4 w-4" />
+                        <span>Email</span>
+                      </a>
+                    </Button>
+                    <Button asChild variant="secondary" size="sm" className="gap-2">
+                      <a href={linkedin} target="_blank" rel="noreferrer noopener">
+                        <Linkedin className="h-4 w-4" />
+                        <span>LinkedIn</span>
+                      </a>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           );
         })}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
