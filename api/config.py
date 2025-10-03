@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     
     # Database
     database_path: str = "app.db"
+
+    # ML model path (defaults to project root xgb_multitarget_model.pkl)
+    model_path: str = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'xgb_multitarget_model.pkl'))
     
     # JWT
     jwt_secret_key: str
@@ -28,7 +31,9 @@ class Settings(BaseSettings):
     environment: str = "development"
     debug: bool = False
     
-    # Frontend
+    # Frontend API keys (client-side usage)
+    # Prefer Mapbox; keep Google field only for backward compatibility
+    vite_mapbox_api_key: str = ""
     vite_google_maps_api_key: str = ""
     
     @validator("jwt_secret_key")
@@ -46,7 +51,9 @@ class Settings(BaseSettings):
         return v
     
     class Config:
-        env_file = "../.env"
+        # Read env from current working directory first (api/.env when running backend)
+        # load_dotenv() in app.py already supports process env; this ensures local file works too
+        env_file = ".env"
         case_sensitive = False
 
 
