@@ -1,0 +1,143 @@
+/** @import must precede all other statements */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /**
+   * Tailwind CSS theme
+   * tailwind.config.ts expects the following color variables to be expressed as HSL values.
+   * A different format will require also updating the theme in tailwind.config.ts.
+  */
+  :root {
+    /* Base palette per spec: Primary sky blues; Accent azure/navy; Teal highlights; Cool grays */
+    --background: 210 40% 98%; /* #F8FAFC */
+    --foreground: 222 47% 11%; /* #0F172A */
+
+    /* Extra CSS vars to support provided snippets */
+    --primary-color: #4da3ff;
+    --primary-light: #7ec8ff;
+    --primary-superlight: #e6f4ff;
+    --accent-deep: #1f6feb;
+    --accent-deeper: #0b5fff;
+    --neutral-dark: #0f172a;
+    --neutral-medium: #334155;
+    --neutral-light: #e2e8f0;
+    --neutral-superlight: #f8fafc;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary sky/baby blue */
+    --primary: 210 100% 65%; /* #4DA3FF */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 215 30% 20%;
+
+    --muted: 210 30% 96%;
+    --muted-foreground: 215 19% 35%; /* #334155 */
+
+    /* Accent azure/navy */
+    --accent: 219 86% 54%; /* #1F6FEB */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 215 20% 90%; /* #E2E8F0 */
+    --input: 215 20% 90%;
+    --ring: 224 100% 52%; /* #0B5FFF */
+
+    /* Rounded 16-24px preference */
+    --radius: 1rem;
+
+    /* Brand tokens */
+    --wc-sky-50: 210 100% 96%; /* #E6F4FF */
+    --wc-sky-300: 210 100% 74%; /* #7EC8FF */
+    --wc-sky-500: 210 100% 65%; /* #4DA3FF */
+
+    --wc-azure-600: 219 86% 54%; /* #1F6FEB */
+    --wc-azure-700: 224 100% 52%; /* #0B5FFF */
+
+    --wc-teal-400: 180 55% 45%; /* subtle teal for data */
+    --wc-teal-300: 180 55% 60%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 215 28% 10%;
+    --foreground: 210 20% 98%;
+
+    --card: 215 28% 12%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 215 28% 12%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 210 100% 70%;
+    --primary-foreground: 215 28% 10%;
+
+    --secondary: 220 18% 16%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 220 18% 16%;
+    --muted-foreground: 220 12% 70%;
+
+    --accent: 219 86% 60%;
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 220 18% 22%;
+    --input: 220 18% 22%;
+    --ring: 224 100% 60%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  h1 {
+    @apply text-4xl sm:text-5xl font-extrabold tracking-tight;
+  }
+  h2 {
+    @apply text-2xl sm:text-3xl font-semibold tracking-tight;
+  }
+  p {
+    @apply text-sm sm:text-base;
+  }
+}
+
+/* WeatherComfort helpers */
+.bg-weather-gradient {
+  background-size: 200% 200%;
+}

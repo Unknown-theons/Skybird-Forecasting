@@ -1,59 +1,146 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-declare global {
-  interface Window { google?: any }
+interface MapboxFeature {
+  place_name: string;
+  text: string;
+  center: [number, number];
+  geometry: {
+    coordinates: [number, number];
+  };
 }
 
-function loadScriptOnce(src: string) {
-  const id = `script-${btoa(src)}`;
-  if (document.getElementById(id)) return Promise.resolve();
-  return new Promise<void>((resolve, reject) => {
-    const s = document.createElement("script");
-    s.id = id;
-    s.src = src;
-    s.async = true;
-    s.defer = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load Google Maps"));
-    document.head.appendChild(s);
-  });
+interface PlaceResult {
+  description?: string;
+  formatted?: string;
+  lat?: number;
+  lng?: number;
 }
 
-export function useGooglePlaces(apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined) {
-  const loadedRef = useRef(false);
+export function useMapboxPlaces(
+  apiKey = import.meta.env.VITE_MAPBOX_API_KEY as string | undefined
+) {
+  const [suggestions, setSuggestions] = useState<MapboxFeature[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const searchPlaces = useCallback(
+    async (query: string): Promise<MapboxFeature[]> => {
+      if (!apiKey || !query.trim()) {
+        setSuggestions([]);
+        return [];
+      }
+
+      // Cancel previous request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      abortControllerRef.current = new AbortController();
+
+      try {
+        const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          query
+        )}.json`;
+        const params = new URLSearchParams({
+          access_token: apiKey,
+          types: "address,place,locality,neighborhood",
+          limit: "5",
+          autocomplete: "true",
+        });
+
+        const response = await fetch(`${endpoint}?${params}`, {
+          signal: abortControllerRef.current.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error("Mapbox API request failed");
+        }
+
+        const data = await response.json();
+        const features = data.features || [];
+        setSuggestions(features);
+        return features;
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("Mapbox geocoding error:", error);
+        }
+        setSuggestions([]);
+        return [];
+      }
+    },
+    [apiKey]
+  );
+
+  const searchWithDebounce = useCallback(
+    (query: string, delay = 300) => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      debounceTimerRef.current = setTimeout(() => {
+        searchPlaces(query);
+      }, delay);
+    },
+    [searchPlaces]
+  );
+
+  const attachAutocomplete = useCallback(
+    (
+      input: HTMLInputElement | null,
+      onPlace?: (place: PlaceResult) => void
+    ) => {
+      if (!input || !apiKey) return;
+      void onPlace;
+
+      const handleInput = (e: Event) => {
+        const target = e.target as HTMLInputElement;
+        searchWithDebounce(target.value);
+      };
+
+      input.addEventListener("input", handleInput);
+
+      // Cleanup function
+      return () => {
+        input.removeEventListener("input", handleInput);
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+      };
+    },
+    [apiKey, searchWithDebounce]
+  );
+
+  const selectPlace = useCallback(
+    (feature: MapboxFeature, onPlace?: (place: PlaceResult) => void) => {
+      const [lng, lat] = feature.center;
+      const place: PlaceResult = {
+        description: feature.text,
+        formatted: feature.place_name,
+        lat,
+        lng,
+      };
+      onPlace?.(place);
+      setSuggestions([]);
+    },
+    []
+  );
 
   useEffect(() => {
-    if (!apiKey || loadedRef.current) return;
-    const url = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`;
-    loadScriptOnce(url).then(() => {
-      loadedRef.current = true;
-    }).catch(() => {
-      // silently fail; input will behave normally
-    });
-  }, [apiKey]);
-
-  const attachAutocomplete = useCallback((input: HTMLInputElement | null, onPlace?: (place: { description?: string; formatted?: string; lat?: number; lng?: number }) => void) => {
-    if (!input || !window.google?.maps?.places) return;
-    try {
-      const ac = new window.google.maps.places.Autocomplete(input, {
-        fields: ["formatted_address", "geometry", "name"],
-        types: ["geocode"],
-      });
-      ac.addListener("place_changed", () => {
-        const place = ac.getPlace();
-        const formatted = place.formatted_address || place.name || input.value;
-        const loc = place.geometry?.location;
-        onPlace?.({
-          description: place.name,
-          formatted,
-          lat: loc?.lat?.(),
-          lng: loc?.lng?.(),
-        });
-      });
-    } catch {
-      // no-op
-    }
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
   }, []);
 
-  return { attachAutocomplete } as const;
+  return {
+    attachAutocomplete,
+    suggestions,
+    searchPlaces,
+    selectPlace,
+    clearSuggestions: () => setSuggestions([]),
+  } as const;
 }

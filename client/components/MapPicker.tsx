@@ -1,64 +1,124 @@
 import { useEffect, useRef } from "react";
-import { useGooglePlaces } from "@/hooks/use-google-places";
-
-declare global { interface Window { google?: any } }
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 type Coords = { lat: number; lng: number };
+
+function getMapboxToken(): string {
+  return (
+    (import.meta.env.VITE_MAPBOX_API_KEY as string | undefined) ||
+    (import.meta.env.PUBLIC_MAPBOX_API_KEY as string | undefined) ||
+    "pk.eyJ1IjoiYWJkZWxyaGFtYW4xMjMiLCJhIjoiY21nOTBmbW5rMGI1NTJqc2E2N2pkNjRyMCJ9.fovjQp9aLuOxb4V4ruCWsw"
+  );
+}
+
+const token = getMapboxToken();
+mapboxgl.accessToken = token;
 
 export function MapPicker({
   value,
   onChange,
-  className = "h-64",
+  className = "h-64 w-full",
 }: {
   value?: Partial<Coords> | null;
   onChange: (v: Coords, formatted?: string) => void;
   className?: string;
 }) {
-  const { attachAutocomplete } = useGooglePlaces(); // ensures script loads
-  const mapRef = useRef<HTMLDivElement | null>(null);
-  const mapInstance = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const geocoderRef = useRef<any>(null);
+  const mapContainer = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markerRef = useRef<mapboxgl.Marker | null>(null);
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null); // 👈 marker for live location
+  const watchIdRef = useRef<number | null>(null);
 
-  // init map when Google is ready
   useEffect(() => {
-    if (!mapRef.current || !window.google?.maps) return;
-    if (!mapInstance.current) {
-      const center: Coords = {
-        lat: typeof value?.lat === "number" ? value!.lat : 30.0444,
-        lng: typeof value?.lng === "number" ? value!.lng : 31.2357,
-      };
-      mapInstance.current = new window.google.maps.Map(mapRef.current, {
-        center,
-        zoom: 11,
-        disableDefaultUI: true,
-        clickableIcons: false,
-      });
-      geocoderRef.current = new window.google.maps.Geocoder();
-      markerRef.current = new window.google.maps.Marker({ map: mapInstance.current, position: center });
-      mapInstance.current.addListener("click", (e: any) => {
-        const pos: Coords = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-        markerRef.current.setPosition(pos);
-        onChange(pos);
-        // try reverse geocode
-        try {
-          geocoderRef.current.geocode({ location: pos }, (results: any, status: any) => {
-            if (status === "OK" && results?.[0]) onChange(pos, results[0].formatted_address);
-          });
-        } catch {}
-      });
+    if (!mapContainer.current || mapRef.current) return;
+
+    const centerLng = value?.lng ?? -122.4194;
+    const centerLat = value?.lat ?? 37.7749;
+
+    const map = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: "mapbox://styles/mapbox/light-v11",
+      center: [centerLng, centerLat],
+      zoom: 10,
+    });
+    mapRef.current = map;
+
+    // Draggable marker (your selected location)
+    markerRef.current = new mapboxgl.Marker({ draggable: true })
+      .setLngLat([centerLng, centerLat])
+      .addTo(map);
+
+    markerRef.current.on("dragend", () => {
+      const p = markerRef.current!.getLngLat();
+      onChange({ lat: p.lat, lng: p.lng });
+    });
+
+    map.on("click", (e) => {
+      const { lng, lat } = e.lngLat;
+      markerRef.current!.setLngLat([lng, lat]);
+      onChange({ lat, lng });
+    });
+
+    // 📌 Add Geolocate button (Mapbox built-in)
+    const geolocateControl = new mapboxgl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+      showUserHeading: true,
+    });
+    map.addControl(geolocateControl, "top-right");
+    map.once("load", () => {
+      // Auto trigger if permission was previously granted
+      try { (geolocateControl as any).trigger?.(); } catch {}
+    });
+
+    // 📌 Live tracking using navigator.geolocation
+    if (!("geolocation" in navigator)) {
+      console.warn("Geolocation is not available in this browser.");
+    } else if (location.protocol !== "https:" && location.hostname !== "localhost") {
+      console.warn("Geolocation requires HTTPS (or localhost) to work.");
+    } else {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+        const { latitude, longitude } = pos.coords;
+
+        if (!userMarkerRef.current) {
+          // create blue marker for user
+          userMarkerRef.current = new mapboxgl.Marker({ color: "blue" })
+            .setLngLat([longitude, latitude])
+            .addTo(map);
+        } else {
+          userMarkerRef.current.setLngLat([longitude, latitude]);
+        }
+
+          // Keep map centered on live location
+          try { map.panTo([longitude, latitude]); } catch {}
+        },
+        (err) => console.error("Geolocation error:", err),
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      );
+      watchIdRef.current = watchId as unknown as number;
     }
-  }, [value?.lat, value?.lng]);
 
-  // sync external value
+    return () => {
+      if (watchIdRef.current !== null) {
+        try { navigator.geolocation.clearWatch(watchIdRef.current); } catch {}
+      }
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+      userMarkerRef.current = null;
+    };
+  }, [onChange]);
+
+  // Update selected marker when props change
   useEffect(() => {
-    if (!window.google?.maps || !mapInstance.current || !markerRef.current) return;
+    if (!mapRef.current || !markerRef.current) return;
     if (typeof value?.lat === "number" && typeof value?.lng === "number") {
-      const pos = { lat: value.lat, lng: value.lng } as Coords;
-      markerRef.current.setPosition(pos);
-      mapInstance.current.panTo(pos);
+      markerRef.current.setLngLat([value.lng, value.lat]);
+      mapRef.current.panTo([value.lng, value.lat]);
     }
   }, [value?.lat, value?.lng]);
 
-  return <div className={className + " rounded-xl border bg-card"} ref={mapRef} />;
+  return <div ref={mapContainer} className={className + " rounded-xl border bg-card"} />;
 }
