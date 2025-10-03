@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +27,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
 } from "lucide-react";
+import { apiService, type WeatherPredictionDto } from "@/lib/api";
 
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -101,6 +102,39 @@ export default function Results() {
 
   const latest = data[Math.min(data.length - 1, 6)];
 
+  const [serverLatest, setServerLatest] = useState<WeatherPredictionDto | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      const res = await apiService.getLatestWeatherPrediction();
+      if (!isMounted) return;
+      if (res.data) {
+        setServerLatest(res.data);
+      } else if (res.status === 404) {
+        // Seed one prediction using current synthetic snapshot
+        const seed = await apiService.addWeatherPrediction({
+          rain: latest.rain,
+          snow: 0,
+          wind: latest.wind,
+          heat: Math.max(0, (latest.temp - 26) * 8),
+          cold: Math.max(0, (12 - latest.temp) * 10),
+          temperature: `${latest.temp.toFixed(1)}°C`,
+          very_hot: 0,
+          very_cold: 0,
+          very_windy: 0,
+          very_wet: latest.rain,
+        });
+        if (seed.data) {
+          // Fetch the created record to display
+          const after = await apiService.getLatestWeatherPrediction();
+          if (after.data) setServerLatest(after.data);
+        }
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
+
   const adverse = useMemo(() => {
     const hot = Math.max(0, Math.min(100, (latest.temp - 26) * 8));
     const cold = Math.max(0, Math.min(100, (12 - latest.temp) * 10));
@@ -127,9 +161,11 @@ export default function Results() {
     rain: Math.round(((latest.rain - prev.rain) / Math.max(1, Math.abs(prev.rain))) * 100),
   };
 
-  const recommendation = latest.comfort >= 65
-    ? { tone: "good" as const, icon: CheckCircle2, text: "Excellent conditions for outdoor plans.", sub: "Low risk of disruptive weather." }
-    : { tone: "caution" as const, icon: AlertTriangle, text: "Conditions may be limiting.", sub: "Plan flexible or indoor options." };
+  const recommendation = serverLatest
+    ? { tone: serverLatest.recommendation === "Good" ? "good" as const : "caution" as const, icon: serverLatest.recommendation === "Good" ? CheckCircle2 : AlertTriangle, text: serverLatest.recommendation, sub: "Based on latest backend prediction" }
+    : latest.comfort >= 65
+      ? { tone: "good" as const, icon: CheckCircle2, text: "Excellent conditions for outdoor plans.", sub: "Low risk of disruptive weather." }
+      : { tone: "caution" as const, icon: AlertTriangle, text: "Conditions may be limiting.", sub: "Plan flexible or indoor options." };
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">

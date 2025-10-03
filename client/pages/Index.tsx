@@ -159,13 +159,17 @@ export default function Index() {
                       </DialogDescription>
                     </DialogHeader>
                     <MapPicker
-                      value={coords.lat && coords.lng ? { lat: coords.lat, lng: coords.lng } : null}
-                      onChange={(pos, addr) => {
-                        setCoords(pos);
-                        if (addr) setLocation(addr);
-                      }}
-                      className="h-80"
-                    />
+  value={coords.lat && coords.lng ? { lat: coords.lat, lng: coords.lng } : null}
+  onChange={(pos, addr) => {
+    setCoords(pos);
+    if (addr) setLocation(addr);
+  }}
+  onAreaChange={(bounds) => {
+    console.log('Selected bounds:', bounds);
+    // e.g. setSelectedBounds(bounds)
+  }}
+  className="h-80"
+/>
                   </DialogContent>
                 </Dialog>
               </div>
