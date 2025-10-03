@@ -1,0 +1,49 @@
+# Root-level ignores
+node_modules/
+dist/
+build/
+.tmp/
+.temp/
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+logs/
+
+# Databases
+*.db
+*.sqlite*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Coverage and caches
+coverage/
+.nyc_output
+.cache
+.parcel-cache
+
+# Framework outputs
+.next
+.nuxt
+
+# Package manager caches
+.npm
+.eslintcache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build artifacts
+*.tgz
+*.tar.gz
