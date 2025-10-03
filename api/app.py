@@ -1,9 +1,22 @@
-from flask import Flask
+from flask import Flask, jsonify, g
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
 import os
+import logging
+import uuid
+from werkzeug.exceptions import HTTPException
+
+# Swagger (Flasgger)
+from flasgger import Swagger
+# Rate limiting
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+# Metrics
+from prometheus_flask_exporter import PrometheusMetrics
+# Caching (optional, configured here; per-route decorators can be added later)
+from flask_caching import Cache
 
 from routes.demo import bp as demo_bp
 from routes.auth import bp as auth_bp, init_auth
@@ -33,6 +46,55 @@ CORS(app, origins=settings.cors_origins, supports_credentials=True)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 init_auth(bcrypt, jwt)
+
+# Swagger setup
+swagger = Swagger(app)
+
+# Rate limiter setup (default limits; tune per environment)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+)
+
+# Metrics setup (/metrics endpoint provided)
+metrics = PrometheusMetrics(app)
+metrics.info("app_info", "Skybird Forecasting API", version="1.0.0")
+
+# Cache setup (simple config; use @cache.cached on routes as needed)
+cache = Cache(app, config={
+    "CACHE_TYPE": "SimpleCache",
+    "CACHE_DEFAULT_TIMEOUT": 60
+})
+
+# Request ID correlation for logs
+class RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            record.request_id = getattr(g, "request_id", "-")
+        except Exception:
+            record.request_id = "-"
+        return True
+
+for handler in logging.getLogger().handlers:
+    handler.addFilter(RequestIdFilter())
+
+@app.before_request
+def assign_request_id():
+    g.request_id = str(uuid.uuid4())
+
+# Global JSON error handling
+@app.errorhandler(HTTPException)
+def handle_http_exception(e: HTTPException):
+    response = e.get_response()
+    response.data = jsonify({
+        "error": e.name.lower().replace(" ", "_"),
+        "status_code": e.code,
+        "message": e.description,
+        "request_id": getattr(g, "request_id", "-")
+    }).data
+    response.content_type = "application/json"
+    return response
 
 # Blueprints
 app.register_blueprint(demo_bp)
