@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fadeInUp, slideUp, staggerContainer, staggerItem, springTransition } from "@/components/ui/motion";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import { Search, MapPin } from "lucide-react";
 import { useMapboxPlaces } from "@/hooks/MapboxSearch";
@@ -103,15 +105,33 @@ export default function Index() {
     <div className="relative overflow-hidden">
       <section className="relative">
         <AnimatedBackground />
-        <div className="container relative z-10 mx-auto max-w-5xl px-4 py-20 text-center md:py-28">
-          <h1 className="text-4xl font-extrabold tracking-tighter text-foreground sm:text-5xl">
+        <motion.div 
+          className="container relative z-10 mx-auto max-w-5xl px-4 py-20 text-center md:py-28"
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+        >
+          <motion.h1 
+            className="text-4xl font-extrabold tracking-tighter text-foreground sm:text-5xl"
+            variants={slideUp}
+            transition={springTransition}
+          >
             Will It Rain On My Parade?
-          </h1>
-          <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
+          </motion.h1>
+          <motion.p 
+            className="mx-auto mt-3 max-w-2xl text-muted-foreground"
+            variants={fadeInUp}
+            transition={{ ...springTransition, delay: 0.2 }}
+          >
             Planning a hike, vacation, or day on the lake? Check the likelihood of very hot, very cold, very windy, very wet, or very uncomfortable conditions for your chosen time and place.
-          </p>
+          </motion.p>
 
-          <form onSubmit={onSubmit} className="mx-auto mt-8 max-w-3xl rounded-2xl border bg-card/80 p-4 shadow-soft-lg backdrop-blur-md">
+          <motion.form 
+            onSubmit={onSubmit} 
+            className="mx-auto mt-8 max-w-3xl rounded-2xl border bg-card/80 p-4 shadow-soft-lg backdrop-blur-md"
+            variants={fadeInUp}
+            transition={{ ...springTransition, delay: 0.4 }}
+          >
             <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -164,10 +184,7 @@ export default function Index() {
     setCoords(pos);
     if (addr) setLocation(addr);
   }}
-  onAreaChange={(bounds) => {
-    console.log('Selected bounds:', bounds);
-    // e.g. setSelectedBounds(bounds)
-  }}
+  
   className="h-80"
 />
                   </DialogContent>
@@ -181,11 +198,16 @@ export default function Index() {
                 onChange={(e) => setDatetime(e.target.value)}
               />
             </div>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              {concernOptions.map((c) => {
+            <motion.div 
+              className="mt-4 flex flex-wrap items-center justify-center gap-2"
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+            >
+              {concernOptions.map((c, index) => {
                 const active = selected.includes(c);
                 return (
-                  <button
+                  <motion.button
                     key={c}
                     type="button"
                     onClick={() => toggle(c)}
@@ -195,19 +217,29 @@ export default function Index() {
                         : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                     }`}
                     aria-pressed={active}
+                    variants={staggerItem}
+                    transition={{ 
+                      ...springTransition,
+                      delay: index * 0.1
+                    }}
+                    layout
                   >
                     {c}
-                  </button>
+                  </motion.button>
                 );
               })}
-            </div>
-            <div className="mt-4">
+            </motion.div>
+            <motion.div 
+              className="mt-4"
+              variants={fadeInUp}
+              transition={{ ...springTransition, delay: 0.8 }}
+            >
               <Button type="submit" className="h-12 px-6">
                 Check Weather Comfort
               </Button>
-            </div>
-          </form>
-        </div>
+            </motion.div>
+          </motion.form>
+        </motion.div>
       </section>
     </div>
   );

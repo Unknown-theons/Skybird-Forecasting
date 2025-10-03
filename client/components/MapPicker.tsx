@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -19,20 +20,16 @@ export function MapPicker({
   value,
   onChange,
   className = "h-64 w-full",
-  onAreaChange,
 }: {
   value?: Partial<Coords> | null;
   onChange: (v: Coords, formatted?: string) => void;
   className?: string;
-  onAreaChange?: (bounds: [[number, number], [number, number]]) => void; // [[minLng,minLat],[maxLng,maxLat]]
 }) {
   const mapContainer = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null); // 👈 marker for live location
   const watchIdRef = useRef<number | null>(null);
-  const isSelectingRef = useRef(false);
-  const dragStartRef = useRef<mapboxgl.LngLat | null>(null);
 
   async function reverseGeocode(lng: number, lat: number): Promise<string | undefined> {
     try {
@@ -62,7 +59,7 @@ export function MapPicker({
     });
     mapRef.current = map;
 
-    // Built-in controls: navigation (zoom/rotate), fullscreen, scale, compact attribution
+    // Built-in controls: navigation (zoom/rotate), fullscreen, scale
     try {
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true, showZoom: true, showCompass: true }), "top-right");
     } catch {}
@@ -71,10 +68,6 @@ export function MapPicker({
     } catch {}
     try {
       map.addControl(new mapboxgl.ScaleControl({ unit: "metric" }), "bottom-left");
-    } catch {}
-    try {
-      // Add compact attribution (Mapbox inserts one by default; compact ensures small pill on small screens)
-      map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
     } catch {}
 
     // Draggable marker (your selected location)
@@ -107,7 +100,7 @@ export function MapPicker({
       try { (geolocateControl as any).trigger?.(); } catch {}
     });
 
-    // 📌 Custom style switcher dropdown (button + menu)
+    // 📌 Custom style switcher dropdown (enhanced design)
     const StyleMenuControl = class implements mapboxgl.IControl {
       _container!: HTMLElement;
       onAdd(): HTMLElement {
@@ -117,43 +110,61 @@ export function MapPicker({
         container.style.position = "relative";
 
         const button = document.createElement("button");
-        button.textContent = "Style";
+        button.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18M3 12h18M3 18h18"/>
+          </svg>
+          <span>Style</span>
+        `;
         Object.assign(button.style, {
-          padding: "8px 10px",
-          background: "#2F4F4F",
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "10px 12px",
+          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
           color: "#ffffff",
-          border: "1px solid #243b3b",
-          borderRadius: "8px",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.14)",
+          border: "none",
+          borderRadius: "12px",
+          boxShadow: "0 4px 12px rgba(102, 126, 234, 0.3)",
           cursor: "pointer",
           fontSize: "13px",
           fontWeight: "600",
           letterSpacing: "0.2px",
           lineHeight: "1.2",
           whiteSpace: "nowrap",
-          minWidth: "80px",
+          minWidth: "90px",
+          transition: "all 0.2s ease",
         } as CSSStyleDeclaration);
-        button.onmouseenter = () => { button.style.background = "#335b5b"; };
-        button.onmouseleave = () => { button.style.background = "#2F4F4F"; };
+        
+        button.onmouseenter = () => { 
+          button.style.transform = "translateY(-2px)";
+          button.style.boxShadow = "0 6px 16px rgba(102, 126, 234, 0.4)";
+        };
+        button.onmouseleave = () => { 
+          button.style.transform = "translateY(0)";
+          button.style.boxShadow = "0 4px 12px rgba(102, 126, 234, 0.3)";
+        };
 
         const menu = document.createElement("div"); 
         Object.assign(menu.style, {
           position: "absolute",
-          top: "40px",
+          top: "50px",
           left: "0",
-          background: "#2F4F4F",
-          border: "1px solid #243b3b",  
-          borderRadius: "10px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
-          padding: "6px",
+          background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(10px)",
+          border: "1px solid rgba(255, 255, 255, 0.2)",  
+          borderRadius: "16px",
+          boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
+          padding: "8px",
           display: "none",
-          minWidth: "160px",
+          minWidth: "180px",
+          zIndex: "1000",
         } as CSSStyleDeclaration);
 
         const styles: Record<string, string> = {
-          "Light": "mapbox://styles/mapbox/light-v11",
-          "Streets": "mapbox://styles/mapbox/streets-v12",
-          "Satellite": "mapbox://styles/mapbox/satellite-streets-v12",
+          "🗺️ Light": "mapbox://styles/mapbox/light-v11",
+          "🏙️ Streets": "mapbox://styles/mapbox/streets-v12",
+          "🛰️ Satellite": "mapbox://styles/mapbox/satellite-streets-v12",
         };
 
         const buildItem = (label: string, styleUrl: string) => {
@@ -162,24 +173,31 @@ export function MapPicker({
           Object.assign(item.style, {
             width: "100%",
             textAlign: "left",
-            padding: "8px 5px",
-            borderRadius: "",
+            padding: "12px 16px",
+            borderRadius: "10px",
             border: "none",
             background: "transparent",
-            color: "#ffffff",
+            color: "#374151",
             cursor: "pointer",
-            fontSize: "13px",
-            transition: "background 120ms ease, color 120ms ease",
+            fontSize: "14px",
+            fontWeight: "500",
+            transition: "all 0.2s ease",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
           } as CSSStyleDeclaration);
           item.onmouseenter = () => {
-            item.style.background = "#3b4a4a";
+            item.style.background = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+            item.style.color = "#ffffff";
+            item.style.transform = "translateX(4px)";
           };
           item.onmouseleave = () => {
             item.style.background = "transparent";
+            item.style.color = "#374151";
+            item.style.transform = "translateX(0)";
           };
           item.onclick = () => {
             try { map.setStyle(styleUrl as any); } catch {}
-            // keep compact label but show current in tooltip
             button.title = `Style: ${label}`;
             menu.style.display = "none";
           };
@@ -210,129 +228,8 @@ export function MapPicker({
     };
     map.addControl(new StyleMenuControl(), "top-left");
 
-    // 📌 Area select (drag to draw rectangle)
-    const AreaControl = class implements mapboxgl.IControl {
-      _btn!: HTMLButtonElement;
-      onAdd(): HTMLElement {
-        const group = document.createElement("div");
-        group.className = "mapboxgl-ctrl mapboxgl-ctrl-group";
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.title = "Select area";
-        btn.textContent = "Area";
-        Object.assign(btn.style, {
-          padding: "8px 10px",
-          background: "#2F4F4F",
-          color: "#fff",
-          border: "1px solid #243b3b",
-          borderRadius: "8px",
-          cursor: "pointer",
-          fontSize: "13px",
-          fontWeight: "600",
-          letterSpacing: "0.2px",
-          minWidth: "80px",
-        } as CSSStyleDeclaration);
-        btn.onmouseenter = () => { btn.style.background = "#335b5b"; };
-        btn.onmouseleave = () => { btn.style.background = isSelectingRef.current ? "#1f3636" : "#2F4F4F"; };
-        btn.onclick = () => {
-          isSelectingRef.current = !isSelectingRef.current;
-          btn.style.background = isSelectingRef.current ? "#1f3636" : "#2F4F4F";
-        };
-        group.appendChild(btn);
-        this._btn = btn;
-        return group;
-      }
-      onRemove(): void {}
-    };
-    map.addControl(new AreaControl(), "top-left");
 
-    // selection source/layer
-    const selectionSourceId = "selection-src";
-    const selectionLayerId = "selection-layer";
-    map.on("load", () => {
-      if (!map.getSource(selectionSourceId)) {
-        map.addSource(selectionSourceId, {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-        } as any);
-        map.addLayer({
-          id: selectionLayerId,
-          type: "fill",
-          source: selectionSourceId,
-          paint: { "fill-color": "#3b82f6", "fill-opacity": 0.15 },
-        });
-        map.addLayer({
-          id: selectionLayerId+"-outline",
-          type: "line",
-          source: selectionSourceId,
-          paint: { "line-color": "#3b82f6", "line-width": 2 },
-        });
-      }
-    });
 
-    const updateSelection = (minLng: number, minLat: number, maxLng: number, maxLat: number) => {
-      const poly = {
-        type: "FeatureCollection",
-        features: [
-          {
-            type: "Feature",
-            geometry: {
-              type: "Polygon",
-              coordinates: [[
-                [minLng, minLat], [maxLng, minLat], [maxLng, maxLat], [minLng, maxLat], [minLng, minLat],
-              ]],
-            },
-            properties: {},
-          },
-        ],
-      } as GeoJSON.FeatureCollection;
-      const src = map.getSource(selectionSourceId) as mapboxgl.GeoJSONSource | undefined;
-      src?.setData(poly as any);
-    };
-
-    const clearSelection = () => {
-      const src = map.getSource(selectionSourceId) as mapboxgl.GeoJSONSource | undefined;
-      src?.setData({ type: "FeatureCollection", features: [] } as any);
-    };
-
-    const getSelectionBounds = () => {
-      const src = map.getSource(selectionSourceId) as mapboxgl.GeoJSONSource | undefined;
-      const data = (src as any)?._data as GeoJSON.FeatureCollection | undefined;
-      const coords = (data?.features?.[0]?.geometry as any)?.coordinates?.[0] as [number, number][] | undefined;
-      if (!coords || coords.length === 0) return null;
-      let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
-      for (const [lng, lat] of coords) {
-        if (lng < minLng) minLng = lng;
-        if (lat < minLat) minLat = lat;
-        if (lng > maxLng) maxLng = lng;
-        if (lat > maxLat) maxLat = lat;
-      }
-      return [[minLng, minLat], [maxLng, maxLat]] as [[number, number], [number, number]];
-    };
-
-    
-
-    map.on("mousemove", (e) => {
-      if (!isSelectingRef.current || !dragStartRef.current) return;
-      const s = dragStartRef.current;
-      const minLng = Math.min(s.lng, e.lngLat.lng);
-      const maxLng = Math.max(s.lng, e.lngLat.lng);
-      const minLat = Math.min(s.lat, e.lngLat.lat);
-      const maxLat = Math.max(s.lat, e.lngLat.lat);
-      updateSelection(minLng, minLat, maxLng, maxLat);
-    });
-
-    map.on("mouseup", (e) => {
-      if (!isSelectingRef.current || !dragStartRef.current) return;
-      const s = dragStartRef.current;
-      const minLng = Math.min(s.lng, e.lngLat.lng);
-      const maxLng = Math.max(s.lng, e.lngLat.lng);
-      const minLat = Math.min(s.lat, e.lngLat.lat);
-      const maxLat = Math.max(s.lat, e.lngLat.lat);
-      dragStartRef.current = null;
-      map.getCanvas().style.cursor = "";
-      onAreaChange?.([[minLng, minLat], [maxLng, maxLat]]);
-    });
 
     // 📌 Top-right focus icon (fits selection or centers marker)
     
@@ -370,7 +267,6 @@ export function MapPicker({
       if (watchIdRef.current !== null) {
         try { navigator.geolocation.clearWatch(watchIdRef.current); } catch {}
       }
-      try { clearSelection(); } catch {}
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
@@ -387,5 +283,20 @@ export function MapPicker({
     }
   }, [value?.lat, value?.lng]);
 
-  return <div ref={mapContainer} className={className + " rounded-xl border bg-card"} />;
+  return (
+    <motion.div 
+      ref={mapContainer} 
+      className={className + " rounded-xl border bg-card"}
+      initial={{ opacity: 0, scale: 0.95, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ 
+        duration: 0.6,
+        ease: [0.25, 0.46, 0.45, 0.94], // Custom cubic-bezier for smoother motion
+        type: "spring",
+        stiffness: 100,
+        damping: 20
+      }}
+      layout
+    />
+  );
 }
