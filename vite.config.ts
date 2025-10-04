@@ -5,6 +5,8 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  root: ".",
+  publicDir: "public",
   server: {
     host: "::",
     port: 8080,
@@ -21,6 +23,16 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: "dist/spa",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          motion: ['framer-motion'],
+          mapbox: ['mapbox-gl']
+        }
+      }
+    }
   },
   plugins: [react()],
   resolve: {
