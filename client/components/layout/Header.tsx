@@ -99,7 +99,6 @@ export default function Header() {
             { to: "/model", label: "Model" },
             { to: "/contribute", label: "Contribute" },
             { to: "/about", label: "About" },
-            { to: "/faq", label: "History" }
           ].map((item, index) => (
             <motion.div 
               key={item.to}

@@ -33,6 +33,7 @@ export default function Index() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const suggestionsRef = useRef<HTMLDivElement | null>(null);
+  const initialLocationSet = useRef<boolean>(false);
   
   const { suggestions, selectPlace, searchPlaces, clearSuggestions } = useMapboxPlaces();
 
@@ -57,6 +58,53 @@ export default function Index() {
     });
     setShowSuggestions(false);
   };
+
+  // Get current location on component mount
+  useEffect(() => {
+    if (initialLocationSet.current) return;
+    
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          
+          // Only set if no location has been set yet
+          if (!location.trim()) {
+            initialLocationSet.current = true;
+            setCoords({ lat: latitude, lng: longitude });
+            
+            // Get formatted address using reverse geocoding
+            try {
+              const token = "pk.eyJ1IjoiYWJkZWxyaGFtYW4xMjMiLCJhIjoiY21nOTBmbW5rMGI1NTJqc2E2N2pkNjRyMCJ9.fovjQp9aLuOxb4V4ruCWsw";
+              const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+                `${longitude},${latitude}`
+              )}.json?access_token=${token}&limit=1`;
+              
+              const res = await fetch(url);
+              if (res.ok) {
+                const data = await res.json();
+                const placeName = data?.features?.[0]?.place_name;
+                if (placeName) {
+                  setLocation(placeName);
+                }
+              }
+            } catch (error) {
+              console.warn("Could not get location name:", error);
+              setLocation("Current Location");
+            }
+          }
+        },
+        (error) => {
+          console.warn("Could not get current location:", error.message);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000 // 5 minutes
+        }
+      );
+    }
+  }, [location]);
 
   // Close suggestions when clicking outside
   useEffect(() => {
