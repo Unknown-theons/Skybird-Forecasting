@@ -30,6 +30,7 @@ export function MapPicker({
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null); // 👈 marker for live location
   const watchIdRef = useRef<number | null>(null);
+  const initialLocationSet = useRef<boolean>(false);
 
   async function reverseGeocode(lng: number, lat: number): Promise<string | undefined> {
     try {
@@ -48,8 +49,12 @@ export function MapPicker({
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
 
-    const centerLng = value?.lng ?? -122.4194;
-    const centerLat = value?.lat ?? 37.7749;
+    // Default coordinates (San Francisco)
+    const defaultLng = -122.4194;
+    const defaultLat = 37.7749;
+    
+    const centerLng = value?.lng ?? defaultLng;
+    const centerLat = value?.lat ?? defaultLat;
 
     const map = new mapboxgl.Map({
       container: mapContainer.current,
@@ -87,6 +92,42 @@ export function MapPicker({
       const formatted = await reverseGeocode(lng, lat);
       onChange({ lat, lng }, formatted);
     });
+
+    // Get current location and set as default if no value provided
+    if (!value?.lat || !value?.lng) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            
+            // Only set as default if no initial location has been set yet
+            if (!initialLocationSet.current) {
+              initialLocationSet.current = true;
+              
+              // Update marker position
+              markerRef.current!.setLngLat([longitude, latitude]);
+              
+              // Center map on current location
+              map.setCenter([longitude, latitude]);
+              map.setZoom(12); // Zoom in a bit more for current location
+              
+              // Get formatted address and call onChange
+              const formatted = await reverseGeocode(longitude, latitude);
+              onChange({ lat: latitude, lng: longitude }, formatted);
+            }
+          },
+          (error) => {
+            console.warn("Could not get current location:", error.message);
+            // If geolocation fails, keep using the default coordinates
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000 // 5 minutes
+          }
+        );
+      }
+    }
 
     // 📌 Add Geolocate button (Mapbox built-in)
     const geolocateControl = new mapboxgl.GeolocateControl({
