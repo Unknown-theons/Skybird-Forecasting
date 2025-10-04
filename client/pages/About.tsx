@@ -8,11 +8,11 @@ import { fadeInUp, slideUp, staggerContainer, staggerItem, springTransition } fr
 const team = [
   // Example of explicit linkedin handle added
   { name: "Mohamed Hussien", role: "Machine Learning Engineer", img: "../../public/assets/MohammedHussien.jpg", initials: "MH", email: "mohamedyahussien@gmail.com", linkedin: "/mkhussien/" },
-  { name: "Yousef Tarek", role: "Full Stack Engineer", img: "../../public/assets/Youssef.png", initials: "YT", email: "Yousseftarek.shaarawy1087@gmail.com", linkedin: "/youssef-tarek-shaarawy-912a2b305/" },
-  { name: "Mohannad Ezz", role: "Data Scientist", img: "../../public/assets/Moahnned.png", initials: "ME", email: "Mohannadezzzahra@gmail.com", linkedin: "/mohannad-zahra-454491290/" },
-  { name: "Omar Alaa", role: "Back End Engineer", img: "../../public/assets/Omar Alaa.png", initials: "OW", email: "omar.alaa.abbas05@gmail.com", linkedin: "/omar-alaa-abbas1337/" },
+  { name: "Yousef Tarek", role: "Full Stack Engineer", img: "../../public/assets/Youssef.jpg", initials: "YT", email: "Yousseftarek.shaarawy1087@gmail.com", linkedin: "/youssef-tarek-shaarawy-912a2b305/" },
+  { name: "Mohannad Ezz", role: "Data Scientist", img: "../../public/assets/Moahnned.jpg", initials: "ME", email: "Mohannadezzzahra@gmail.com", linkedin: "/mohannad-zahra-454491290/" },
+  { name: "Omar Alaa", role: "Back End Engineer", img: "../../public/assets/Omar Alaa.jpg", initials: "OW", email: "omar.alaa.abbas05@gmail.com", linkedin: "/omar-alaa-abbas1337/" },
   // Example of explicit email and linkedin handle
-  { name: "Abdelrahman Wael", role: "Full Stack Engineer", img: "../../public/assets/Abdelrhaman.png", initials: "AW", email: "abdelrhamanwael8@gmail.com", linkedin: "/abdelrhaman-wael-mohammed-790171366/" }, 
+  { name: "Abdelrahman Wael", role: "Full Stack Engineer", img: "../../public/assets/Abdelrhaman.jpg", initials: "AW", email: "abdelrhamanwael8@gmail.com", linkedin: "/abdelrhaman-wael-mohammed-790171366/" }, 
 ];
 
 function slugify(input: string) {
